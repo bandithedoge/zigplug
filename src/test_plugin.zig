@@ -52,9 +52,9 @@ fn deinit(plugin_data: *const zigplug.PluginData) void {
 
 fn process(plugin_data: *const zigplug.PluginData, block: zigplug.ProcessBlock) zigplug.ProcessStatus {
     for (block.out) |buffer| {
-        for (0..buffer.channels) |channel| {
+        for (buffer.data) |channel| {
             for (0..buffer.samples) |sample| {
-                buffer.data[channel][sample] = @sin(state.phase * 2.0 * std.math.pi) * 0.2;
+                channel[sample] = @sin(state.phase * 2.0 * std.math.pi) * 0.2;
                 state.phase += 440.0 / @as(f32, @floatFromInt(plugin_data.sample_rate));
                 state.phase -= @floor(state.phase);
             }

@@ -57,8 +57,6 @@ fn ClapPlugin(comptime plugin: zigplug.Plugin) type {
         }
 
         fn process(clap_plugin: [*c]const clap.clap_plugin, clap_process: [*c]const clap.clap_process_t) callconv(.C) clap.clap_process_status {
-            // zigplug.log.debug("process()\n", .{});
-
             _ = clap_plugin;
 
             const inputs = plugin.ports.in.len;
@@ -72,11 +70,13 @@ fn ClapPlugin(comptime plugin: zigplug.Plugin) type {
             inline for (0..inputs) |i| {
                 const input = clap_process.*.audio_inputs[i];
                 const channels = plugin.ports.in[i].channels;
+
                 std.debug.assert(input.channel_count == channels);
 
+                const data: [*][*]f32 = @ptrCast(input.data32);
+
                 input_buffers[i] = .{
-                    .data = @ptrCast(input.data32),
-                    .channels = channels,
+                    .data = data[0..channels],
                     .samples = samples,
                 };
             }
@@ -85,11 +85,13 @@ fn ClapPlugin(comptime plugin: zigplug.Plugin) type {
             inline for (0..outputs) |i| {
                 const output = clap_process.*.audio_outputs[i];
                 const channels = plugin.ports.in[i].channels;
+
                 std.debug.assert(output.channel_count == channels);
 
+                const data: [*][*]f32 = @ptrCast(output.data32);
+
                 output_buffers[i] = .{
-                    .data = @ptrCast(output.data32),
-                    .channels = channels,
+                    .data = data[0..channels],
                     .samples = samples,
                 };
             }

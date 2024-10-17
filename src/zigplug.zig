@@ -48,8 +48,7 @@ pub const Port = struct {
 };
 
 pub const ProcessBuffer = struct {
-    data: [*][*]f32, // TODO: change this to slices
-    channels: u8,
+    data: [][*]f32, // TODO: use a slice for sample data
     samples: u32,
 };
 
