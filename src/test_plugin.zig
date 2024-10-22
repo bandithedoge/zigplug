@@ -1,10 +1,13 @@
 const std = @import("std");
 const zigplug = @import("zigplug.zig");
+const parameters = @import("parameters.zig");
 const clap = @import("clap/adapter.zig");
 
 var state: struct {
     phase: f32,
 } = undefined;
+
+var gpa = std.heap.GeneralPurposeAllocator(.{}){};
 
 const plugin: zigplug.Plugin = .{
     .id = "com.bandithedoge.zigplug",
@@ -35,27 +38,60 @@ const plugin: zigplug.Plugin = .{
     .callbacks = .{
         .init = init,
         .deinit = deinit,
+        .setupParameter = setupParameter,
         .process = process,
     },
+
+    .Parameters = enum { gain, frequency, mute },
+
+    .allocator = gpa.allocator(),
 };
 
 export const clap_entry = clap.clap_entry(plugin);
 
-fn init(plugin_data: *const zigplug.PluginData) void {
-    _ = plugin_data; // autofix
+fn init(plug: *const zigplug.Plugin) void {
+    _ = plug; // autofix
+
+    gpa.init();
+
     state.phase = 0.0;
 }
 
-fn deinit(plugin_data: *const zigplug.PluginData) void {
-    _ = plugin_data; // autofix
+fn deinit(plug: *const zigplug.Plugin) void {
+    _ = plug; // autofix
+
+    gpa.deinit();
 }
 
-fn process(plugin_data: *const zigplug.PluginData, block: zigplug.ProcessBlock) zigplug.ProcessStatus {
+fn setupParameter(T: type, index: u32) parameters.Parameter {
+    const param: T = @enumFromInt(index);
+    return switch (param) {
+        .gain => parameters.makeParam(.{ .float = 1.0 }, .{
+            .name = "Gain",
+        }),
+        .frequency => parameters.makeParam(.{ .uint = 440 }, .{
+            .name = "Frequency",
+            .min = .{ .uint = 0 },
+            .max = .{ .uint = 20000 },
+        }),
+        .mute => parameters.makeParam(.{ .bool = false }, .{
+            .name = "Mute",
+        }),
+    };
+}
+
+fn process(plug: *const zigplug.Plugin, block: zigplug.ProcessBlock) zigplug.ProcessStatus {
     for (block.out) |buffer| {
         for (buffer.data) |channel| {
             for (0..buffer.samples) |sample| {
-                channel[sample] = @sin(state.phase * 2.0 * std.math.pi) * 0.2;
-                state.phase += 440.0 / @as(f32, @floatFromInt(plugin_data.sample_rate));
+                // TODO: write a better sine wave example...
+                channel[sample] = if (plug.getParam(.mute).bool)
+                    0
+                else
+                    @sin(state.phase * 2.0 * std.math.pi) * 0.2 * plug.getParam(.gain).float;
+
+                state.phase += @as(f32, @floatFromInt(plug.getParam(.frequency).uint)) /
+                    @as(f32, @floatFromInt(plug.data.sample_rate));
                 state.phase -= @floor(state.phase);
             }
         }

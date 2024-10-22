@@ -1,4 +1,5 @@
 const std = @import("std");
+const parameters = @import("parameters.zig");
 
 pub const Feature = enum {
     instrument,
@@ -65,9 +66,13 @@ pub const ProcessStatus = enum {
 pub const PluginData = struct {
     /// hz
     sample_rate: u32,
+    mutex: std.Thread.Mutex,
+    parameters: std.ArrayList(parameters.Parameter),
 };
 
 pub const Plugin = struct {
+    allocator: std.mem.Allocator,
+
     id: [:0]const u8,
     name: [:0]const u8,
     vendor: [:0]const u8,
@@ -85,13 +90,23 @@ pub const Plugin = struct {
     },
 
     callbacks: struct {
-        init: fn (*const PluginData) void,
-        deinit: fn (*const PluginData) void,
-        process: fn (*const PluginData, ProcessBlock) ProcessStatus,
+        init: fn (*const Plugin) void,
+        deinit: fn (*const Plugin) void,
+        setupParameter: fn (type, u32) parameters.Parameter,
+        // TODO: process events
+        process: fn (*const Plugin, ProcessBlock) ProcessStatus,
     },
-};
 
-// TODO: make this a pointer in the Plugin struct
-pub var plugin_data: PluginData = undefined;
+    Parameters: type,
+
+    data: *PluginData = &plugin_data,
+
+    pub var plugin_data: PluginData = undefined;
+
+    pub fn getParam(self: *const Plugin, id: self.Parameters) parameters.ParameterType {
+        return self.data.parameters.items[@intFromEnum(id)].get();
+    }
+
+};
 
 pub const log = std.log.scoped(.zigplug);

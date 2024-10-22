@@ -2,7 +2,6 @@ const std = @import("std");
 
 const zigplug = @import("../zigplug.zig");
 const clap = @import("c.zig");
-const extensions = @import("extensions.zig");
 const features = @import("features.zig");
 
 fn ClapPlugin(comptime plugin: zigplug.Plugin) type {
@@ -24,9 +23,9 @@ fn ClapPlugin(comptime plugin: zigplug.Plugin) type {
             zigplug.log.debug("activate({}, {}, {})\n", .{ sample_rate, min_size, max_size });
 
             _ = clap_plugin;
-            zigplug.plugin_data.sample_rate = @intFromFloat(sample_rate);
+            plugin.data.sample_rate = @intFromFloat(sample_rate);
 
-            zigplug.log.debug("{}", .{zigplug.plugin_data.sample_rate});
+            zigplug.log.debug("{}", .{plugin.data.sample_rate});
 
             return true;
         }
@@ -59,9 +58,37 @@ fn ClapPlugin(comptime plugin: zigplug.Plugin) type {
         fn process(clap_plugin: [*c]const clap.clap_plugin, clap_process: [*c]const clap.clap_process_t) callconv(.C) clap.clap_process_status {
             _ = clap_plugin;
 
+            const samples = clap_process.*.frames_count;
+
+            // process events
+            const event_count = clap_process.*.in_events.*.size.?(clap_process.*.in_events);
+            var event_index: u32 = 0;
+            var next_event_frame = if (event_count > 0) 0 else samples;
+            {
+                var i: usize = 0;
+                while (i < samples) : (i = next_event_frame) {
+                    while ((event_index < event_count) and (next_event_frame == i)) {
+                        const event = clap_process.*.in_events.*.get.?(clap_process.*.in_events, event_index);
+
+                        if (event.*.time != i) {
+                            next_event_frame = event.*.time;
+                            break;
+                        }
+
+                        @import("events.zig").processEvent(&plugin, event);
+                        event_index += 1;
+
+                        if (event_index == event_count) {
+                            next_event_frame = samples;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            // render audio
             const inputs = plugin.ports.in.len;
             const outputs = plugin.ports.out.len;
-            const samples = clap_process.*.frames_count;
 
             std.debug.assert(clap_process.*.audio_inputs_count == inputs);
             std.debug.assert(clap_process.*.audio_outputs_count == outputs);
@@ -96,7 +123,9 @@ fn ClapPlugin(comptime plugin: zigplug.Plugin) type {
                 };
             }
 
-            const status = plugin.callbacks.process(&zigplug.plugin_data, .{ .in = &input_buffers, .out = &output_buffers });
+            const status = plugin.callbacks.process(&plugin, .{ .in = &input_buffers, .out = &output_buffers });
+
+            // TODO: synchronize main and audio threads
 
             return switch (status) {
                 .ok => clap.CLAP_PROCESS_CONTINUE,
@@ -112,10 +141,23 @@ fn ClapPlugin(comptime plugin: zigplug.Plugin) type {
             const id_slice = std.mem.sliceTo(id, 0);
 
             if (std.mem.eql(u8, id_slice, &clap.CLAP_EXT_AUDIO_PORTS)) {
-                const audio_ports = extensions.AudioPorts(plugin);
+                const audio_ports = @import("extensions/audio_ports.zig").AudioPorts(plugin);
                 const ext: clap.clap_plugin_audio_ports_t = .{
                     .count = audio_ports.count,
                     .get = audio_ports.get,
+                };
+                return &ext;
+            }
+
+            if (std.mem.eql(u8, id_slice, &clap.CLAP_EXT_PARAMS)) {
+                const parameters = @import("extensions/parameters.zig").Parameters(plugin);
+                const ext: clap.clap_plugin_params_t = .{
+                    .count = parameters.count,
+                    .get_info = parameters.get_info,
+                    .get_value = parameters.get_value,
+                    .value_to_text = parameters.value_to_text,
+                    .text_to_value = parameters.text_to_value,
+                    .flush = parameters.flush,
                 };
                 return &ext;
             }

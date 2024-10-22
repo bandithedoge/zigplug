@@ -1,6 +1,6 @@
 const std = @import("std");
-const zigplug = @import("../zigplug.zig");
-const clap = @import("c.zig");
+const zigplug = @import("../../zigplug.zig");
+const clap = @import("../c.zig");
 
 pub fn AudioPorts(comptime plugin: zigplug.Plugin) type {
     return extern struct {
