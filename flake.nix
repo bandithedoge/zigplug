@@ -2,7 +2,10 @@
   inputs = {
     flake-parts.url = "github:hercules-ci/flake-parts";
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+
+    zig-overlay.url = "github:mitchellh/zig-overlay";
     zls.url = "github:zigtools/zls";
+    zls.inputs.zig-overlay.follows = "zig-overlay";
   };
 
   outputs = inputs @ {flake-parts, ...}:
@@ -15,17 +18,22 @@
         pkgs,
         system,
         ...
-      }: {
+      }: let
+        zig = inputs.zig-overlay.packages.${system}.master;
+        inherit (inputs.zls.packages.${system}) zls;
+      in {
         packages.default = pkgs.stdenv.mkDerivation {
           name = "zigplug";
           src = ./.;
 
-          inherit (inputs.zls.packages.${system}.zls) nativeBuildInputs;
+          nativeBuildInputs = [
+            zig
+          ];
         };
 
         devShells.default = pkgs.mkShell {
           inputsFrom = [self'.packages.default];
-          packages = [inputs.zls.packages.${system}.zls];
+          packages = [zls];
         };
       };
     };
