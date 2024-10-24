@@ -104,7 +104,11 @@ pub const Plugin = struct {
     pub var plugin_data: PluginData = undefined;
 
     pub fn getParam(self: *const Plugin, id: self.Parameters) parameters.ParameterType {
-        return self.data.parameters.items[@intFromEnum(id)].get();
+        plugin_data.mutex.lock();
+        defer plugin_data.mutex.unlock();
+
+        const result = self.data.parameters.items[@intFromEnum(id)].get();
+        return result;
     }
 
 };

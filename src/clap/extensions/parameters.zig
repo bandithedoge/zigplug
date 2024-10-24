@@ -8,6 +8,9 @@ pub fn Parameters(comptime plugin: zigplug.Plugin) type {
         pub fn count(clap_plugin: [*c]const clap.clap_plugin_t) callconv(.C) u32 {
             _ = clap_plugin; // autofix
 
+            plugin.data.mutex.lock();
+            defer plugin.data.mutex.unlock();
+
             plugin.data.parameters = std.ArrayList(parameters.Parameter).init(plugin.allocator);
 
             return @typeInfo(plugin.Parameters).@"enum".fields.len;
@@ -32,6 +35,9 @@ pub fn Parameters(comptime plugin: zigplug.Plugin) type {
             };
 
             std.mem.copyBackwards(u8, &info.*.name, param.name);
+
+            plugin.data.mutex.lock();
+            defer plugin.data.mutex.unlock();
 
             plugin.data.parameters.insert(index, param) catch {
                 unreachable;

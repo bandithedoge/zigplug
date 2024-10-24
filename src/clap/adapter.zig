@@ -123,6 +123,8 @@ fn ClapPlugin(comptime plugin: zigplug.Plugin) type {
                 };
             }
 
+            // FIXME: race condition
+            // sometimes this function gets called before all parameters are initialized causing an index out of bounds error
             const status = plugin.callbacks.process(&plugin, .{ .in = &input_buffers, .out = &output_buffers });
 
             // TODO: synchronize main and audio threads
