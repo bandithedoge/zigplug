@@ -1,3 +1,7 @@
+// TODO: enum parameters
+
+const std = @import("std");
+
 pub const ParameterType = union(enum) {
     float: f32,
     int: i32,
@@ -29,6 +33,15 @@ pub const ParameterType = union(enum) {
             },
         }
     }
+
+    pub fn print(self: *const ParameterType, allocator: std.mem.Allocator) ![:0]const u8 {
+        return switch (self.*) {
+            .float => std.fmt.allocPrintZ(allocator, "{d}", .{self.float}),
+            .int => std.fmt.allocPrintZ(allocator, "{d}", .{self.int}),
+            .uint => std.fmt.allocPrintZ(allocator, "{d}", .{self.int}),
+            .bool => if (self.bool) "true" else "false",
+        };
+    }
 };
 
 /// do not create this directly, use the `<type>Param()` functions
@@ -37,6 +50,7 @@ pub const Parameter = struct {
     default: ParameterType,
     min: ParameterType,
     max: ParameterType,
+    unit: ?[:0]const u8 = null,
 
     /// do not modify directly, use `set()` and `get()` to handle types properly
     value: ParameterType = .{ .float = 0.0 },
@@ -54,12 +68,14 @@ const Options = struct {
     name: [:0]const u8,
     min: ?ParameterType = null,
     max: ?ParameterType = null,
+    unit: ?[:0]const u8 = null,
 };
 
 pub fn makeParam(param_type: ParameterType, options: Options) Parameter {
     return .{
         .value = param_type,
         .name = options.name,
+        .unit = options.unit,
         .default = param_type,
         .min = options.min orelse switch (param_type) {
             .float => .{ .float = 0.0 },

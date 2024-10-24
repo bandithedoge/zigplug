@@ -46,26 +46,59 @@ pub fn Parameters(comptime plugin: zigplug.Plugin) type {
             if (id >= @typeInfo(plugin.Parameters).@"enum".fields.len)
                 return false;
 
+            plugin.data.mutex.lock();
+            defer plugin.data.mutex.unlock();
+
             value.* = plugin.data.parameters.items[id].value.toFloat();
 
             return true;
         }
 
         pub fn value_to_text(clap_plugin: [*c]const clap.clap_plugin_t, id: clap.clap_id, value: f64, display: [*c]u8, size: u32) callconv(.C) bool {
-            _ = size; // autofix
-            _ = display; // autofix
-            _ = value; // autofix
-            _ = id; // autofix
             _ = clap_plugin; // autofix
+
+            var param = plugin.data.parameters.items[id];
+            param.value.fromFloat(value);
+
+            const result = param.value.print(plugin.allocator) catch {
+                zigplug.log.err("formatting parameter value failed: {}", .{value});
+                return false;
+            };
+
+            std.mem.copyBackwards(
+                u8,
+                display[0..size],
+                if (param.unit) |unit|
+                    std.fmt.allocPrintZ(plugin.allocator, "{s} {s}", .{ result, unit }) catch {
+                        return false;
+                    }
+                else
+                    result,
+            );
 
             return true;
         }
 
         pub fn text_to_value(clap_plugin: [*c]const clap.clap_plugin_t, id: clap.clap_id, display: [*c]const u8, value: [*c]f64) callconv(.C) bool {
-            _ = value; // autofix
-            _ = display; // autofix
-            _ = id; // autofix
             _ = clap_plugin; // autofix
+
+            var param = plugin.data.parameters.items[id];
+            const src = std.mem.span(display);
+
+            param.value = (switch (param.value) {
+                .float => .{ .float = std.fmt.parseFloat(f32, src) catch {
+                    return false;
+                } },
+                .int => .{ .int = std.fmt.parseInt(i32, src, 10) catch {
+                    return false;
+                } },
+                .uint => .{ .uint = std.fmt.parseUnsigned(u32, src, 10) catch {
+                    return false;
+                } },
+                .bool => .{ .bool = std.mem.eql(u8, src, "true") },
+            });
+
+            value.* = param.value.toFloat();
 
             return true;
         }

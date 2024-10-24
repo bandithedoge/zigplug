@@ -73,6 +73,7 @@ fn setupParameter(T: type, index: u32) parameters.Parameter {
             .name = "Frequency",
             .min = .{ .uint = 0 },
             .max = .{ .uint = 20000 },
+            .unit = "Hz",
         }),
         .mute => parameters.makeParam(.{ .bool = false }, .{
             .name = "Mute",
