@@ -1,7 +1,6 @@
 const std = @import("std");
-const zigplug = @import("../../zigplug.zig");
+const zigplug = @import("zigplug");
 const clap = @import("../c.zig");
-const parameters = @import("../../parameters.zig");
 
 pub fn Parameters(comptime plugin: zigplug.Plugin) type {
     return extern struct {
@@ -11,7 +10,7 @@ pub fn Parameters(comptime plugin: zigplug.Plugin) type {
             plugin.data.mutex.lock();
             defer plugin.data.mutex.unlock();
 
-            plugin.data.parameters = std.ArrayList(parameters.Parameter).init(plugin.allocator);
+            plugin.data.parameters = std.ArrayList(zigplug.parameters.Parameter).init(plugin.allocator);
 
             return @typeInfo(plugin.Parameters).@"enum".fields.len;
         }

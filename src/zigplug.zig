@@ -1,5 +1,5 @@
 const std = @import("std");
-const parameters = @import("parameters.zig");
+pub const parameters = @import("parameters.zig");
 
 pub const Feature = enum {
     instrument,

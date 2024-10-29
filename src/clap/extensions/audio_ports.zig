@@ -1,5 +1,5 @@
 const std = @import("std");
-const zigplug = @import("../../zigplug.zig");
+const zigplug = @import("zigplug");
 const clap = @import("../c.zig");
 
 pub fn AudioPorts(comptime plugin: zigplug.Plugin) type {

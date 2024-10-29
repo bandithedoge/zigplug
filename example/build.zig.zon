@@ -1,0 +1,14 @@
+.{
+    .name = "zigplug_example",
+    .version = "0.0.0",
+    .dependencies = .{
+        .zigplug = .{
+            .path = "..",
+        },
+    },
+    .paths = .{
+        "src",
+        "build.zig",
+        "build.zig.zon",
+    },
+}

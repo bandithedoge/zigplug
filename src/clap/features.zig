@@ -1,5 +1,5 @@
 const std = @import("std");
-const zigplug = @import("../zigplug.zig");
+const zigplug = @import("zigplug");
 const clap = @import("c.zig");
 
 const FeatureMap = std.EnumArray(zigplug.Feature, [*c]const u8);

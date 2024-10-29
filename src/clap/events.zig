@@ -1,5 +1,5 @@
+const zigplug = @import("zigplug");
 const clap = @import("c.zig");
-const zigplug = @import("../zigplug.zig");
 
 pub fn processEvent(plugin: *const zigplug.Plugin, event: *const clap.clap_event_header_t) void {
     if (event.space_id == clap.CLAP_CORE_EVENT_SPACE_ID) {

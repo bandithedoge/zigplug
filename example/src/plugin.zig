@@ -1,7 +1,5 @@
 const std = @import("std");
-const zigplug = @import("zigplug.zig");
-const parameters = @import("parameters.zig");
-const clap = @import("clap/adapter.zig");
+const zigplug = @import("zigplug");
 
 var state: struct {
     phase: f32,
@@ -9,7 +7,7 @@ var state: struct {
 
 var gpa = std.heap.GeneralPurposeAllocator(.{}){};
 
-const plugin: zigplug.Plugin = .{
+pub const plugin: zigplug.Plugin = .{
     .id = "com.bandithedoge.zigplug",
     .name = "zigplug",
     .vendor = "bandithedoge",
@@ -47,8 +45,6 @@ const plugin: zigplug.Plugin = .{
     .allocator = gpa.allocator(),
 };
 
-export const clap_entry = clap.clap_entry(plugin);
-
 fn init(plug: *const zigplug.Plugin) void {
     _ = plug; // autofix
 
@@ -63,19 +59,19 @@ fn deinit(plug: *const zigplug.Plugin) void {
     gpa.deinit();
 }
 
-fn setupParameter(T: type, index: u32) parameters.Parameter {
+fn setupParameter(T: type, index: u32) zigplug.parameters.Parameter {
     const param: T = @enumFromInt(index);
     return switch (param) {
-        .gain => parameters.makeParam(.{ .float = 1.0 }, .{
+        .gain => zigplug.parameters.makeParam(.{ .float = 1.0 }, .{
             .name = "Gain",
         }),
-        .frequency => parameters.makeParam(.{ .uint = 440 }, .{
+        .frequency => zigplug.parameters.makeParam(.{ .uint = 440 }, .{
             .name = "Frequency",
             .min = .{ .uint = 0 },
             .max = .{ .uint = 20000 },
             .unit = "Hz",
         }),
-        .mute => parameters.makeParam(.{ .bool = false }, .{
+        .mute => zigplug.parameters.makeParam(.{ .bool = false }, .{
             .name = "Mute",
         }),
     };
