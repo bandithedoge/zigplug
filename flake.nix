@@ -18,22 +18,12 @@
         pkgs,
         system,
         ...
-      }: let
-        zig = inputs.zig-overlay.packages.${system}.master;
-        inherit (inputs.zls.packages.${system}) zls;
-      in {
-        packages.default = pkgs.stdenv.mkDerivation {
-          name = "zigplug";
-          src = ./.;
-
-          nativeBuildInputs = [
-            zig
-          ];
-        };
-
+      }: {
         devShells.default = pkgs.mkShell {
-          inputsFrom = [self'.packages.default];
-          packages = [zls];
+          packages = [
+            inputs.zig-overlay.packages.${system}.master
+            inputs.zls.packages.${system}.zls
+          ];
         };
       };
     };
