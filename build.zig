@@ -1,4 +1,5 @@
 const std = @import("std");
+const this = @This();
 
 pub fn build(b: *std.Build) void {
     _ = b.addModule("zigplug", .{
@@ -17,11 +18,14 @@ pub const Plugin = struct {
         source_file: std.Build.LazyPath,
     };
 
+    var zigplug: *std.Build.Dependency = undefined;
     var object: *std.Build.Step.Compile = undefined;
 
     /// Creates a static library from your plugin source.
     /// The root source file *must* export `pub const plugin: zigplug.Plugin`.
     pub fn new(b: *std.Build, options: Options) Plugin {
+        zigplug = b.dependencyFromBuildZig(this, .{});
+
         object = b.addStaticLibrary(.{
             .name = "plugin",
             .target = options.target,
@@ -29,7 +33,6 @@ pub const Plugin = struct {
             .root_source_file = options.source_file,
         });
 
-        const zigplug = b.dependency("zigplug", .{});
         object.root_module.addImport("zigplug", zigplug.module("zigplug"));
 
         return .{
@@ -55,8 +58,6 @@ pub const Plugin = struct {
         clap.step.dependOn(&entry.step);
         clap.root_module.linkLibrary(object);
         clap.root_module.addImport("plugin", &object.root_module);
-
-        const zigplug = self.b.dependency("zigplug", .{});
 
         const clap_adapter = self.b.addModule("clap_adapter", .{
             .root_source_file = zigplug.builder.path("src/clap/adapter.zig"),
