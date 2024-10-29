@@ -3,12 +3,8 @@
     .version = "0.0.0",
     .dependencies = .{
         .zigplug = .{
-            .path = "..",
+            .path = "../..",
         },
     },
-    .paths = .{
-        "src",
-        "build.zig",
-        "build.zig.zon",
-    },
+    .paths = .{""},
 }
