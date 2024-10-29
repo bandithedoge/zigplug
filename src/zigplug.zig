@@ -81,8 +81,8 @@ pub const Plugin = struct {
     description: [:0]const u8,
     /// TODO: implement features
     features: []const Feature,
-    manual_url: ?[:0]const u8,
-    support_url: ?[:0]const u8,
+    manual_url: ?[:0]const u8 = null,
+    support_url: ?[:0]const u8 = null,
 
     ports: struct {
         in: []const Port,
