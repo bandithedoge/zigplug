@@ -1,0 +1,10 @@
+.{
+    .name = "zigplug_minimal",
+    .version = "0.0.0",
+    .dependencies = .{
+        .zigplug = .{
+            .path = "../..",
+        },
+    },
+    .paths = .{""},
+}
