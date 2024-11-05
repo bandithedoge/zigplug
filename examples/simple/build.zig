@@ -5,12 +5,19 @@ pub fn build(b: *std.Build) !void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    const plugin = zigplug.Plugin.new(b, .{
+    const plugin = b.addStaticLibrary(.{
         .name = "zigplug_example",
         .target = target,
         .optimize = optimize,
-        .source_file = b.path("src/plugin.zig"),
+        .root_source_file = b.path("src/plugin.zig"),
     });
 
-    _ = try plugin.addClapTarget();
+    const zigplug_dep = b.dependency("zigplug", .{
+        .with_clap = true,
+        .with_gui = true,
+    });
+
+    const builder = zigplug.PluginBuilder.new(plugin, zigplug_dep);
+
+    _ = try builder.addClapTarget();
 }

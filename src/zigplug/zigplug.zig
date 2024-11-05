@@ -110,7 +110,6 @@ pub const Plugin = struct {
         const result = self.data.parameters.items[@intFromEnum(id)].get();
         return result;
     }
-
 };
 
 pub const log = std.log.scoped(.zigplug);

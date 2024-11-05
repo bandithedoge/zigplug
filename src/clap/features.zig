@@ -1,6 +1,6 @@
 const std = @import("std");
 const zigplug = @import("zigplug");
-const clap = @import("c.zig");
+const clap = @import("c");
 
 const FeatureMap = std.EnumArray(zigplug.Feature, [*c]const u8);
 

@@ -12,5 +12,11 @@ pub fn build(b: *std.Build) !void {
         .source_file = b.path("src/plugin.zig"),
     });
 
-    _ = try plugin.addClapTarget();
+    const zigplug_dep = b.dependency("zigplug", .{
+        .with_clap = true,
+    });
+
+    const builder = zigplug.PluginBuilder.new(plugin, zigplug_dep);
+
+    _ = try builder.addClapTarget();
 }

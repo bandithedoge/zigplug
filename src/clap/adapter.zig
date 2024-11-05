@@ -1,7 +1,7 @@
 const std = @import("std");
 
 const zigplug = @import("zigplug");
-const clap = @import("c.zig");
+const clap = @import("c");
 const features = @import("features.zig");
 
 fn ClapPlugin(comptime plugin: zigplug.Plugin) type {
@@ -140,7 +140,7 @@ fn ClapPlugin(comptime plugin: zigplug.Plugin) type {
 
             _ = clap_plugin;
 
-            const id_slice = std.mem.sliceTo(id, 0);
+            const id_slice = std.mem.span(id);
 
             if (std.mem.eql(u8, id_slice, &clap.CLAP_EXT_AUDIO_PORTS)) {
                 const audio_ports = @import("extensions/audio_ports.zig").AudioPorts(plugin);
@@ -160,6 +160,37 @@ fn ClapPlugin(comptime plugin: zigplug.Plugin) type {
                     .value_to_text = parameters.value_to_text,
                     .text_to_value = parameters.text_to_value,
                     .flush = parameters.flush,
+                };
+                return &ext;
+            }
+
+            if (std.mem.eql(u8, id_slice, &clap.CLAP_EXT_STATE)) {
+                const state = @import("extensions/state.zig").State(plugin);
+                const ext: clap.clap_plugin_state_t = .{
+                    .save = state.save,
+                    .load = state.load,
+                };
+                return &ext;
+            }
+
+            if (std.mem.eql(u8, id_slice, &clap.CLAP_EXT_GUI)) {
+                const gui = @import("extensions/gui.zig").Gui(plugin);
+                const ext: clap.clap_plugin_gui_t = .{
+                    .is_api_supported = gui.is_api_supported,
+                    .get_preferred_api = gui.get_preferred_api,
+                    .create = gui.create,
+                    .destroy = gui.destroy,
+                    .set_scale = gui.set_scale,
+                    .get_size = gui.get_size,
+                    .can_resize = gui.can_resize,
+                    .get_resize_hints = gui.get_resize_hints,
+                    .adjust_size = gui.adjust_size,
+                    .set_size = gui.set_size,
+                    .set_parent = gui.set_parent,
+                    .set_transient = gui.set_transient,
+                    .suggest_title = gui.suggest_title,
+                    .show = gui.show,
+                    .hide = gui.hide,
                 };
                 return &ext;
             }

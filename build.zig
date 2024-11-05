@@ -2,77 +2,108 @@ const std = @import("std");
 const this = @This();
 
 pub fn build(b: *std.Build) void {
-    _ = b.addModule("zigplug", .{
-        .root_source_file = b.path("src/zigplug.zig"),
-    });
-}
+    const target = b.standardTargetOptions(.{});
+    const optimize = b.standardOptimizeOption(.{});
 
-pub const Plugin = struct {
-    options: Options,
-    b: *std.Build,
-
-    pub const Options = struct {
-        name: []const u8,
-        target: std.Build.ResolvedTarget,
-        optimize: std.builtin.OptimizeMode,
-        source_file: std.Build.LazyPath,
+    const options = .{
+        .with_gui = b.option(bool, "with_gui", "Build GUI") orelse false,
+        .with_clap = b.option(bool, "with_clap", "Build CLAP target") orelse false,
     };
 
-    var zigplug: *std.Build.Dependency = undefined;
-    var object: *std.Build.Step.Compile = undefined;
+    const options_step = b.addOptions();
+    inline for (std.meta.fields(@TypeOf(options))) |field| {
+        options_step.addOption(field.type, field.name, @field(options, field.name));
+    }
 
-    /// Creates a static library from your plugin source.
-    /// The root source file *must* export `pub const plugin: zigplug.Plugin`.
-    pub fn new(b: *std.Build, options: Options) Plugin {
-        zigplug = b.dependencyFromBuildZig(this, .{});
+    const zigplug = b.addModule("zigplug", .{
+        .root_source_file = b.path("src/zigplug/zigplug.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "zigplug_options", .module = options_step.createModule() },
+        },
+    });
 
-        object = b.addStaticLibrary(.{
-            .name = "plugin",
-            .target = options.target,
-            .optimize = options.optimize,
-            .root_source_file = options.source_file,
+    if (options.with_gui) {
+        switch (target.result.os.tag) {
+            .linux => {
+                const dep = b.lazyDependency("system_sdk", .{}).?;
+                switch (target.result.cpu.arch) {
+                    .x86_64 => {
+                        zigplug.addLibraryPath(dep.path("linux/lib/x86_64-linux-gnu"));
+                    },
+                    .aarch64 => {
+                        zigplug.addLibraryPath(dep.path("linux/lib/aarch64-linux-gnu"));
+                    },
+                    else => {
+                        _ = b.addFail("GUI not supported on target arch");
+                    },
+                }
+                zigplug.linkSystemLibrary("X11", .{});
+                zigplug.addIncludePath(dep.path("linux/include"));
+            },
+            else => {
+                _ = b.addFail("GUI not supported on target OS");
+            },
+        }
+    }
+
+    if (options.with_clap) {
+        const clap_adapter = b.addModule("clap_adapter", .{
+            .root_source_file = b.path("src/clap/adapter.zig"),
+            .imports = &.{
+                .{ .name = "zigplug", .module = zigplug },
+            },
         });
 
-        object.root_module.addImport("zigplug", zigplug.module("zigplug"));
+        const clap_c = b.addTranslateC(.{
+            .root_source_file = b.lazyDependency("clap_api", .{}).?.path("include/clap/clap.h"),
+            .target = target,
+            .optimize = optimize,
+        });
+        clap_adapter.addAnonymousImport("c", .{
+            .root_source_file = clap_c.getOutput(),
+        });
+    }
+}
 
+pub const PluginBuilder = struct {
+    object: *std.Build.Step.Compile,
+    zigplug: *std.Build.Dependency,
+
+    pub fn new(object: *std.Build.Step.Compile, zigplug: *std.Build.Dependency) PluginBuilder {
         return .{
-            .options = options,
-            .b = b,
+            .object = object,
+            .zigplug = zigplug,
         };
     }
 
-    pub fn addClapTarget(self: *const Plugin) !*std.Build.Step.Compile {
-        const name = try std.mem.concat(self.b.allocator, u8, &[_][]const u8{ self.options.name, ".clap" });
+    pub fn addClapTarget(self: *const PluginBuilder) !*std.Build.Step.Compile {
+        const b = self.zigplug.builder;
 
-        const entry = self.b.addWriteFile("clap_entry.zig",
+        const name = try std.mem.concat(b.allocator, u8, &[_][]const u8{ self.object.name, ".clap" });
+
+        const entry = b.addWriteFile("clap_entry.zig",
             \\ export const clap_entry = @import("clap_adapter").clap_entry(@import("plugin").plugin);
         );
-        entry.step.dependOn(&object.step);
+        entry.step.dependOn(&self.object.step);
 
-        const clap = self.b.addSharedLibrary(.{
+        const clap = b.addSharedLibrary(.{
             .name = name,
-            .root_source_file = entry.getDirectory().path(self.b, "clap_entry.zig"),
-            .target = self.options.target,
-            .optimize = self.options.optimize,
+            .root_source_file = entry.getDirectory().path(b, "clap_entry.zig"),
+            .target = self.object.root_module.resolved_target orelse b.standardTargetOptions(.{}),
+            .optimize = self.object.root_module.optimize orelse b.standardOptimizeOption(.{}),
         });
         clap.step.dependOn(&entry.step);
-        clap.root_module.linkLibrary(object);
-        clap.root_module.addImport("plugin", &object.root_module);
+        clap.root_module.linkLibrary(self.object);
+        clap.root_module.addImport("plugin", &self.object.root_module);
 
-        const clap_adapter = self.b.addModule("clap_adapter", .{
-            .root_source_file = zigplug.builder.path("src/clap/adapter.zig"),
-        });
-        clap_adapter.addImport("zigplug", zigplug.module("zigplug"));
+        clap.root_module.addImport("clap_adapter", self.zigplug.module("clap_adapter"));
 
-        const clap_c = zigplug.builder.lazyDependency("clap_api", .{});
-        clap_adapter.addIncludePath(clap_c.?.path("include"));
-
-        clap.root_module.addImport("clap_adapter", clap_adapter);
-
-        const install = self.b.addInstallArtifact(clap, .{
+        const install = b.addInstallArtifact(clap, .{
             .dest_sub_path = name,
         });
-        self.b.getInstallStep().dependOn(&install.step);
+        b.getInstallStep().dependOn(&install.step);
 
         return clap;
     }
