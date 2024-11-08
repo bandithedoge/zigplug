@@ -1,47 +1,8 @@
 const std = @import("std");
 pub const parameters = @import("parameters.zig");
+pub const gui = @import("gui.zig");
 
-pub const Feature = enum {
-    instrument,
-    effect,
-    note_effect,
-    note_detector,
-    analyzer,
-    synthesizer,
-    sampler,
-    drum,
-    drum_machine,
-    filter,
-    phaser,
-    equalizer,
-    deesser,
-    phase_vocoder,
-    granular,
-    frequency_shifter,
-    pitch_shifter,
-    distortion,
-    transient_shaper,
-    compressor,
-    expander,
-    gate,
-    limiter,
-    flanger,
-    chorus,
-    delay,
-    reverb,
-    tremolo,
-    glitch,
-    utility,
-    pitch_correction,
-    restoration,
-    multi_effects,
-    mixing,
-    mastering,
-    mono,
-    stereo,
-    surround,
-    ambisonic,
-};
+pub const Feature = enum { instrument, effect, note_effect, note_detector, analyzer, synthesizer, sampler, drum, drum_machine, filter, phaser, equalizer, deesser, phase_vocoder, granular, frequency_shifter, pitch_shifter, distortion, transient_shaper, compressor, expander, gate, limiter, flanger, chorus, delay, reverb, tremolo, glitch, utility, pitch_correction, restoration, multi_effects, mixing, mastering, mono, stereo, surround, ambisonic };
 
 pub const Port = struct {
     name: [:0]const u8,
@@ -68,6 +29,18 @@ pub const PluginData = struct {
     sample_rate: u32,
     mutex: std.Thread.Mutex,
     parameters: std.ArrayList(parameters.Parameter),
+    gui_created: bool = false,
+};
+
+pub const GuiOptions = struct {
+    backend: gui.Backend,
+
+    resizable: bool = false,
+    keep_aspect: bool = true,
+    default_width: u16 = 800,
+    default_height: u16 = 600,
+    min_width: ?u16 = null,
+    min_height: ?u16 = null,
 };
 
 pub const Plugin = struct {
@@ -98,6 +71,8 @@ pub const Plugin = struct {
     },
 
     Parameters: type,
+
+    gui: ?GuiOptions = null,
 
     data: *PluginData = &plugin_data,
 

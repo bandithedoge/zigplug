@@ -42,6 +42,12 @@ pub const plugin: zigplug.Plugin = .{
 
     .Parameters = enum { gain, frequency, mute },
 
+    .gui = .{
+        .backend = zigplug.gui.backends.OpenGl.backend(.{
+            .render = render,
+        }),
+    },
+
     .allocator = gpa.allocator(),
 };
 
@@ -94,4 +100,12 @@ fn process(plug: *const zigplug.Plugin, block: zigplug.ProcessBlock) zigplug.Pro
         }
     }
     return .ok;
+}
+
+const gl = zigplug.gui.backends.OpenGl.c;
+
+fn render() !void {
+    // TODO: write a better opengl example (spinning cube?)
+    gl.glClearColor(0, 1, 0, 0);
+    gl.glClear(gl.GL_COLOR_BUFFER_BIT | gl.GL_DEPTH_BUFFER_BIT);
 }

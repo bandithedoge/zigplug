@@ -15,6 +15,7 @@ pub fn build(b: *std.Build) !void {
     const zigplug_dep = b.dependency("zigplug", .{
         .with_clap = true,
         .with_gui = true,
+        .gui_backend = .gl,
     });
 
     const builder = zigplug.PluginBuilder.new(plugin, zigplug_dep);

@@ -20,9 +20,10 @@
         ...
       }: {
         devShells.default = pkgs.mkShell {
-          packages = [
+          packages = with pkgs; [
             inputs.zig-overlay.packages.${system}.master
             inputs.zls.packages.${system}.zls
+            xorg.libXrandr
           ];
         };
       };
