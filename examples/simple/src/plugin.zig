@@ -43,7 +43,7 @@ pub const plugin: zigplug.Plugin = .{
     .Parameters = enum { gain, frequency, mute },
 
     .gui = .{
-        .backend = zigplug.gui.backends.OpenGl.backend(.{
+        .backend = zigplug.gui.backends.OpenGl.backend(.gles2_0, .{
             .render = render,
         }),
     },

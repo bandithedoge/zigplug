@@ -56,7 +56,14 @@ pub const Callbacks = struct {
     destroy: ?fn (comptime zigplug.Plugin, type) anyerror!void = null,
 };
 
-pub fn backend(callbacks: Callbacks) gui.Backend {
+pub const Version = enum {
+    gl2_2,
+    gl3_0,
+    gl3_3,
+    gles2_0,
+};
+
+pub fn backend(version: Version, callbacks: Callbacks) gui.Backend {
     const B = struct {
         fn onEvent(view: ?*c.PuglView, event: [*c]const c.PuglEvent) callconv(.C) c.PuglStatus {
             switch (event.*.type) {
@@ -103,9 +110,29 @@ pub fn backend(callbacks: Callbacks) gui.Backend {
             switch (options.gui_backend) {
                 .gl => {
                     try handleError(c.puglSetBackend(data.view, c.puglGlBackend()));
-                    try handleError(c.puglSetViewHint(data.view, c.PUGL_CONTEXT_VERSION_MAJOR, 3));
-                    try handleError(c.puglSetViewHint(data.view, c.PUGL_CONTEXT_VERSION_MINOR, 3));
-                    try handleError(c.puglSetViewHint(data.view, c.PUGL_CONTEXT_PROFILE, c.PUGL_OPENGL_COMPATIBILITY_PROFILE));
+                    switch (version) {
+                        .gl2_2 => {
+                            try handleError(c.puglSetViewHint(data.view, c.PUGL_CONTEXT_API, c.PUGL_OPENGL_API));
+                            try handleError(c.puglSetViewHint(data.view, c.PUGL_CONTEXT_VERSION_MAJOR, 2));
+                            try handleError(c.puglSetViewHint(data.view, c.PUGL_CONTEXT_VERSION_MINOR, 2));
+                        },
+                        .gl3_0 => {
+                            try handleError(c.puglSetViewHint(data.view, c.PUGL_CONTEXT_API, c.PUGL_OPENGL_API));
+                            try handleError(c.puglSetViewHint(data.view, c.PUGL_CONTEXT_VERSION_MAJOR, 3));
+                            try handleError(c.puglSetViewHint(data.view, c.PUGL_CONTEXT_VERSION_MINOR, 0));
+                        },
+                        .gl3_3 => {
+                            try handleError(c.puglSetViewHint(data.view, c.PUGL_CONTEXT_API, c.PUGL_OPENGL_API));
+                            try handleError(c.puglSetViewHint(data.view, c.PUGL_CONTEXT_VERSION_MAJOR, 3));
+                            try handleError(c.puglSetViewHint(data.view, c.PUGL_CONTEXT_VERSION_MINOR, 3));
+                        },
+                        .gles2_0 => {
+                            try handleError(c.puglSetViewHint(data.view, c.PUGL_CONTEXT_API, c.PUGL_OPENGL_ES_API));
+                            try handleError(c.puglSetViewHint(data.view, c.PUGL_CONTEXT_VERSION_MAJOR, 2));
+                            try handleError(c.puglSetViewHint(data.view, c.PUGL_CONTEXT_VERSION_MINOR, 0));
+                        },
+                    }
+                    try handleError(c.puglSetViewHint(data.view, c.PUGL_CONTEXT_PROFILE, c.PUGL_OPENGL_CORE_PROFILE));
                 },
                 else => unreachable,
             }
