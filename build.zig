@@ -9,7 +9,7 @@ pub fn build(b: *std.Build) !void {
         .with_clap = b.option(bool, "with_clap", "Build CLAP target") orelse false,
 
         .with_gui = b.option(bool, "with_gui", "Build GUI") orelse false,
-        .gui_backend = b.option(enum { external, gl }, "gui_backend", "GUI backend") orelse .gl,
+        .gui_backend = b.option(enum { external, gl, cairo }, "gui_backend", "GUI backend") orelse .gl,
     };
 
     const options_step = b.addOptions();
@@ -27,7 +27,7 @@ pub fn build(b: *std.Build) !void {
         },
     });
 
-    if (options.with_gui and options.gui_backend == .gl) {
+    if (options.with_gui and (options.gui_backend == .gl or options.gui_backend == .cairo)) {
         const pugl_dep = b.lazyDependency("pugl", .{});
         const pugl = b.addStaticLibrary(.{
             .name = "pugl",
@@ -56,11 +56,26 @@ pub fn build(b: *std.Build) !void {
                 }
                 try pugl_sources.appendSlice(&.{ "src/x11.c", switch (options.gui_backend) {
                     .gl => "src/x11_gl.c",
+                    .cairo => "src/x11_cairo.c",
                     else => unreachable,
                 } });
                 pugl.linkLibC();
                 zigplug.linkSystemLibrary("X11", .{});
                 zigplug.linkSystemLibrary("Xrandr", .{});
+
+                if (options.gui_backend == .cairo) {
+                    pugl.linkSystemLibrary("cairo");
+
+                    // HACK: cairo headers are located in a "cairo/" subdirectory when imported in zig,
+                    // yet pugl expects them to be in the top-level include dir.
+                    // this should be turned into a patch or better yet a fork of pugl/cairo with the build system replaced with zig.
+                    const include = b.addWriteFiles();
+                    const headers = &[_][]const u8{ "cairo-xlib.h", "cairo.h" };
+                    for (headers) |h| {
+                        _ = include.add(h, try std.fmt.allocPrint(b.allocator, "#include <cairo/{s}>", .{h}));
+                    }
+                    pugl.addIncludePath(include.getDirectory());
+                }
 
                 pugl.addIncludePath(system_sdk_dep.path("linux/include"));
                 zigplug.addIncludePath(system_sdk_dep.path("linux/include"));

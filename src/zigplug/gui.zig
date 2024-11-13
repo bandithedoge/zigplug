@@ -1,3 +1,4 @@
+const std = @import("std");
 const zigplug = @import("zigplug.zig");
 
 pub const backends = @import("backends/backends.zig");
@@ -6,6 +7,13 @@ pub const WindowHandle = union(enum) {
     x11: u64,
     cocoa: *anyopaque,
     win32: *anyopaque,
+};
+
+pub const RenderData = struct {
+    x: i32,
+    y: i32,
+    w: u32,
+    h: u32,
 };
 
 pub const Backend = struct {

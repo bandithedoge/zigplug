@@ -6,7 +6,14 @@ const gui = @import("../gui.zig");
 
 pub const c = @cImport({
     @cInclude("pugl/pugl.h");
-    @cInclude("pugl/gl.h");
+    switch (options.gui_backend) {
+        .gl => @cInclude("pugl/gl.h"),
+        .cairo => {
+            @cInclude("pugl/cairo.h");
+            @cInclude("cairo/cairo.h");
+        },
+        else => unreachable,
+    }
 });
 
 const PuglError = error{
@@ -50,12 +57,6 @@ var data: struct {
     view: ?*c.PuglView = null,
 } = undefined;
 
-pub const Callbacks = struct {
-    render: fn () anyerror!void,
-    create: ?fn (comptime zigplug.Plugin, type) anyerror!void = null,
-    destroy: ?fn (comptime zigplug.Plugin, type) anyerror!void = null,
-};
-
 pub const Version = enum {
     gl2_2,
     gl3_0,
@@ -63,12 +64,32 @@ pub const Version = enum {
     gles2_0,
 };
 
-pub fn backend(version: Version, callbacks: Callbacks) gui.Backend {
+pub const Callbacks = struct {
+    render: switch (options.gui_backend) {
+        .gl => fn (gui.RenderData) anyerror!void,
+        .cairo => fn (*c.cairo_t, gui.RenderData) anyerror!void,
+        else => unreachable,
+    },
+    create: ?fn (comptime zigplug.Plugin, type) anyerror!void = null,
+    destroy: ?fn (comptime zigplug.Plugin, type) anyerror!void = null,
+};
+
+fn puglBackend(version: ?Version, callbacks: Callbacks) gui.Backend {
     const B = struct {
         fn onEvent(view: ?*c.PuglView, event: [*c]const c.PuglEvent) callconv(.C) c.PuglStatus {
             switch (event.*.type) {
                 c.PUGL_EXPOSE => {
-                    callbacks.render() catch return c.PUGL_REALIZE_FAILED;
+                    const render_data: gui.RenderData = .{
+                        .x = @intCast(event.*.expose.x),
+                        .y = @intCast(event.*.expose.y),
+                        .w = event.*.expose.width,
+                        .h = event.*.expose.height,
+                    };
+                    switch (options.gui_backend) {
+                        .gl => callbacks.render(render_data) catch return c.PUGL_REALIZE_FAILED,
+                        .cairo => callbacks.render(@ptrCast(c.puglGetContext(data.view)), render_data) catch return c.PUGL_REALIZE_FAILED,
+                        else => unreachable,
+                    }
                 },
                 c.PUGL_UPDATE => {
                     return c.puglPostRedisplay(view);
@@ -110,7 +131,7 @@ pub fn backend(version: Version, callbacks: Callbacks) gui.Backend {
             switch (options.gui_backend) {
                 .gl => {
                     try handleError(c.puglSetBackend(data.view, c.puglGlBackend()));
-                    switch (version) {
+                    switch (version.?) {
                         .gl2_2 => {
                             try handleError(c.puglSetViewHint(data.view, c.PUGL_CONTEXT_API, c.PUGL_OPENGL_API));
                             try handleError(c.puglSetViewHint(data.view, c.PUGL_CONTEXT_VERSION_MAJOR, 2));
@@ -133,6 +154,9 @@ pub fn backend(version: Version, callbacks: Callbacks) gui.Backend {
                         },
                     }
                     try handleError(c.puglSetViewHint(data.view, c.PUGL_CONTEXT_PROFILE, c.PUGL_OPENGL_CORE_PROFILE));
+                },
+                .cairo => {
+                    try handleError(c.puglSetBackend(data.view, c.puglCairoBackend()));
                 },
                 else => unreachable,
             }
@@ -194,4 +218,18 @@ pub fn backend(version: Version, callbacks: Callbacks) gui.Backend {
         .tick = B.tick,
         .suggestTitle = B.suggestTitle,
     };
+}
+
+pub fn openGl(version: Version, callbacks: Callbacks) gui.Backend {
+    if (options.gui_backend != .gl)
+        std.debug.panic("OpenGL backend was not selected in build.zig", .{});
+
+    return puglBackend(version, callbacks);
+}
+
+pub fn cairo(callbacks: Callbacks) gui.Backend {
+    if (options.gui_backend != .cairo)
+        std.debug.panic("Cairo backend was not selected in build.zig", .{});
+
+    return puglBackend(null, callbacks);
 }

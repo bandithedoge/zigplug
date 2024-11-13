@@ -144,9 +144,14 @@ fn ClapPlugin(comptime plugin: zigplug.Plugin) type {
                 };
             }
 
+            const block: zigplug.ProcessBlock = .{
+                .in = &input_buffers,
+                .out = &output_buffers,
+            };
+
             // FIXME: race condition
             // sometimes this function gets called before all parameters are initialized causing an index out of bounds error
-            const status = plugin.callbacks.process(&plugin, .{ .in = &input_buffers, .out = &output_buffers });
+            const status = plugin.callbacks.process(&plugin, block);
 
             // TODO: synchronize main and audio threads
 

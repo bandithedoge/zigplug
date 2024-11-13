@@ -24,6 +24,7 @@
             inputs.zig-overlay.packages.${system}.master
             inputs.zls.packages.${system}.zls
             xorg.libXrandr
+            cairo
           ];
         };
       };
