@@ -5,11 +5,11 @@ pub fn build(b: *std.Build) !void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    const plugin = zigplug.Plugin.new(b, .{
+    const plugin = b.addStaticLibrary(.{
         .name = "zigplug_minimal",
         .target = target,
         .optimize = optimize,
-        .source_file = b.path("src/plugin.zig"),
+        .root_source_file = b.path("src/plugin.zig"),
     });
 
     const zigplug_dep = b.dependency("zigplug", .{
