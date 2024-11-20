@@ -30,6 +30,13 @@ pub const PluginData = struct {
     mutex: std.Thread.Mutex,
     parameters: std.ArrayList(parameters.Parameter),
     gui_created: bool = false,
+
+    sample_lock: std.Thread.RwLock,
+    sample_data_for_gui: ?ProcessBlock = null,
+
+    pub fn cast(ptr: ?*anyopaque) *PluginData {
+        return @ptrCast(@alignCast(ptr));
+    }
 };
 
 pub const GuiOptions = struct {
@@ -41,6 +48,7 @@ pub const GuiOptions = struct {
     default_height: u16 = 600,
     min_width: ?u16 = null,
     min_height: ?u16 = null,
+    sample_access: bool = false,
 };
 
 pub const Plugin = struct {

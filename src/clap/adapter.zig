@@ -153,6 +153,15 @@ fn ClapPlugin(comptime plugin: zigplug.Plugin) type {
             // sometimes this function gets called before all parameters are initialized causing an index out of bounds error
             const status = plugin.callbacks.process(&plugin, block);
 
+            if (comptime plugin.gui) |gui| {
+                if (comptime gui.sample_access) {
+                    if (plugin.data.sample_lock.tryLock()) {
+                        defer plugin.data.sample_lock.unlock();
+                        plugin.data.sample_data_for_gui = block;
+                    }
+                }
+            }
+
             // TODO: synchronize main and audio threads
 
             return switch (status) {

@@ -93,8 +93,7 @@ fn process(plug: *const zigplug.Plugin, block: zigplug.ProcessBlock) zigplug.Pro
                 else
                     @sin(state.phase * 2.0 * std.math.pi) * 0.2 * plug.getParam(.gain).float;
 
-                state.phase += @as(f32, @floatFromInt(plug.getParam(.frequency).uint)) /
-                    @as(f32, @floatFromInt(plug.data.sample_rate));
+                state.phase += @as(f32, @floatFromInt(plug.getParam(.frequency).uint)) / @as(f32, @floatFromInt(plug.data.sample_rate));
                 state.phase -= @floor(state.phase);
             }
         }
@@ -104,7 +103,7 @@ fn process(plug: *const zigplug.Plugin, block: zigplug.ProcessBlock) zigplug.Pro
 
 const gl = zigplug.gui.backends.OpenGl.c;
 
-fn render() !void {
+fn render(_: zigplug.gui.RenderData) !void {
     // TODO: write a better opengl example (spinning cube?)
     gl.glClearColor(0, 1, 0, 0);
     gl.glClear(gl.GL_COLOR_BUFFER_BIT | gl.GL_DEPTH_BUFFER_BIT);

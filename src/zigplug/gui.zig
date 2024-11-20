@@ -14,6 +14,7 @@ pub const RenderData = struct {
     y: i32,
     w: u32,
     h: u32,
+    process_block: ?zigplug.ProcessBlock = null,
 };
 
 pub const Backend = struct {

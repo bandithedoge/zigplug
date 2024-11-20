@@ -79,12 +79,20 @@ fn puglBackend(version: ?Version, callbacks: Callbacks) gui.Backend {
         fn onEvent(view: ?*c.PuglView, event: [*c]const c.PuglEvent) callconv(.C) c.PuglStatus {
             switch (event.*.type) {
                 c.PUGL_EXPOSE => {
-                    const render_data: gui.RenderData = .{
+                    const plugin_data = zigplug.PluginData.cast(c.puglGetHandle(view));
+                    var render_data: gui.RenderData = .{
                         .x = @intCast(event.*.expose.x),
                         .y = @intCast(event.*.expose.y),
                         .w = event.*.expose.width,
                         .h = event.*.expose.height,
                     };
+
+                    if (plugin_data.sample_data_for_gui) |sample_data| {
+                        plugin_data.sample_lock.lock();
+                        defer plugin_data.sample_lock.unlock();
+                        render_data.process_block = sample_data;
+                    }
+
                     switch (options.gui_backend) {
                         .gl => callbacks.render(render_data) catch return c.PUGL_REALIZE_FAILED,
                         .cairo => callbacks.render(@ptrCast(c.puglGetContext(data.view)), render_data) catch return c.PUGL_REALIZE_FAILED,
@@ -100,11 +108,14 @@ fn puglBackend(version: ?Version, callbacks: Callbacks) gui.Backend {
             return c.PUGL_SUCCESS;
         }
 
-        pub fn create(comptime plugin: zigplug.Plugin) PuglError!void {
+        pub fn create(comptime plugin: zigplug.Plugin) !void {
             data.world = c.puglNewWorld(c.PUGL_MODULE, 0);
             try handleError(c.puglSetWorldString(data.world, c.PUGL_CLASS_NAME, plugin.name));
 
             data.view = c.puglNewView(data.world);
+
+            c.puglSetHandle(data.view, plugin.data);
+
             try handleError(c.puglSetSizeHint(
                 data.view,
                 c.PUGL_DEFAULT_SIZE,
