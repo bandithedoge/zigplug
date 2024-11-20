@@ -7,7 +7,7 @@ pub fn State(comptime plugin: zigplug.Plugin) type {
         pub fn save(clap_plugin: [*c]const clap.clap_plugin_t, stream: [*c]const clap.clap_ostream_t) callconv(.C) bool {
             _ = clap_plugin; // autofix
 
-            const param_count = @typeInfo(plugin.Parameters).@"enum".fields.len;
+            const param_count = @typeInfo(plugin.Parameters.?).@"enum".fields.len;
             var params = plugin.data.parameters.clone() catch {
                 return false;
             };
@@ -22,7 +22,7 @@ pub fn State(comptime plugin: zigplug.Plugin) type {
             plugin.data.mutex.lock();
             defer plugin.data.mutex.unlock();
 
-            const param_count = @typeInfo(plugin.Parameters).@"enum".fields.len;
+            const param_count = @typeInfo(plugin.Parameters.?).@"enum".fields.len;
             var buffer: [param_count]zigplug.parameters.Parameter = undefined;
 
             const result = @sizeOf(zigplug.parameters.Parameter) * param_count == stream.*.read.?(stream, &buffer, @sizeOf(zigplug.parameters.Parameter) * param_count);

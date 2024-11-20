@@ -7,21 +7,24 @@ pub fn Parameters(comptime plugin: zigplug.Plugin) type {
         pub fn count(clap_plugin: [*c]const clap.clap_plugin_t) callconv(.C) u32 {
             _ = clap_plugin; // autofix
 
+            std.debug.assert(plugin.Parameters != null);
+            std.debug.assert(plugin.callbacks.setupParameter != null);
+
             plugin.data.mutex.lock();
             defer plugin.data.mutex.unlock();
 
             plugin.data.parameters = std.ArrayList(zigplug.parameters.Parameter).init(plugin.allocator);
 
-            return @typeInfo(plugin.Parameters).@"enum".fields.len;
+            return @typeInfo(plugin.Parameters.?).@"enum".fields.len;
         }
 
         pub fn get_info(clap_plugin: [*c]const clap.clap_plugin_t, index: u32, info: [*c]clap.clap_param_info_t) callconv(.C) bool {
             _ = clap_plugin; // autofix
 
-            if (index >= @typeInfo(plugin.Parameters).@"enum".fields.len)
+            if (index >= @typeInfo(plugin.Parameters.?).@"enum".fields.len)
                 return false;
 
-            const param = plugin.callbacks.setupParameter(plugin.Parameters, index);
+            const param = plugin.callbacks.setupParameter.?(plugin.Parameters.?, index);
 
             info.*.id = index;
             info.*.min_value = param.min.toFloat();
@@ -48,7 +51,7 @@ pub fn Parameters(comptime plugin: zigplug.Plugin) type {
         pub fn get_value(clap_plugin: [*c]const clap.clap_plugin_t, id: clap.clap_id, value: [*c]f64) callconv(.C) bool {
             _ = clap_plugin; // autofix
 
-            if (id >= @typeInfo(plugin.Parameters).@"enum".fields.len)
+            if (id >= @typeInfo(plugin.Parameters.?).@"enum".fields.len)
                 return false;
 
             plugin.data.mutex.lock();

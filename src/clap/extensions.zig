@@ -13,26 +13,32 @@ pub fn getExtension(comptime plugin: zigplug.Plugin, id: [:0]const u8) ?*const a
         return &ext;
     }
 
-    if (std.mem.eql(u8, id, &clap.CLAP_EXT_PARAMS)) {
-        const parameters = @import("extensions/parameters.zig").Parameters(plugin);
-        const ext: clap.clap_plugin_params_t = .{
-            .count = parameters.count,
-            .get_info = parameters.get_info,
-            .get_value = parameters.get_value,
-            .value_to_text = parameters.value_to_text,
-            .text_to_value = parameters.text_to_value,
-            .flush = parameters.flush,
-        };
-        return &ext;
-    }
+    if (comptime plugin.Parameters != null or plugin.callbacks.setupParameter != null) {
+        if (!(plugin.Parameters != null and plugin.callbacks.setupParameter != null)) {
+            @compileError("To support parameters you must define both `Parameters` and `callbacks.setupParameter`.");
+        }
 
-    if (std.mem.eql(u8, id, &clap.CLAP_EXT_STATE)) {
-        const state = @import("extensions/state.zig").State(plugin);
-        const ext: clap.clap_plugin_state_t = .{
-            .save = state.save,
-            .load = state.load,
-        };
-        return &ext;
+        if (std.mem.eql(u8, id, &clap.CLAP_EXT_PARAMS)) {
+            const parameters = @import("extensions/parameters.zig").Parameters(plugin);
+            const ext: clap.clap_plugin_params_t = .{
+                .count = parameters.count,
+                .get_info = parameters.get_info,
+                .get_value = parameters.get_value,
+                .value_to_text = parameters.value_to_text,
+                .text_to_value = parameters.text_to_value,
+                .flush = parameters.flush,
+            };
+            return &ext;
+        }
+
+        if (std.mem.eql(u8, id, &clap.CLAP_EXT_STATE)) {
+            const state = @import("extensions/state.zig").State(plugin);
+            const ext: clap.clap_plugin_state_t = .{
+                .save = state.save,
+                .load = state.load,
+            };
+            return &ext;
+        }
     }
 
     if (plugin.gui != null and options.with_gui) {

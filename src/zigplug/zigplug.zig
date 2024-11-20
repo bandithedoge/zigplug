@@ -51,6 +51,19 @@ pub const GuiOptions = struct {
     sample_access: bool = false,
 };
 
+pub const Callbacks = struct {
+    init: fn (*const Plugin) void,
+    deinit: fn (*const Plugin) void,
+    process: fn (*const Plugin, ProcessBlock) ProcessStatus, // TODO: process events
+
+    setupParameter: ?fn (type, u32) parameters.Parameter = null,
+};
+
+pub const Ports = struct {
+    in: []const Port,
+    out: []const Port,
+};
+
 pub const Plugin = struct {
     allocator: std.mem.Allocator,
 
@@ -65,20 +78,11 @@ pub const Plugin = struct {
     manual_url: ?[:0]const u8 = null,
     support_url: ?[:0]const u8 = null,
 
-    ports: struct {
-        in: []const Port,
-        out: []const Port,
-    },
+    ports: Ports,
 
-    callbacks: struct {
-        init: fn (*const Plugin) void,
-        deinit: fn (*const Plugin) void,
-        setupParameter: fn (type, u32) parameters.Parameter,
-        // TODO: process events
-        process: fn (*const Plugin, ProcessBlock) ProcessStatus,
-    },
+    callbacks: Callbacks,
 
-    Parameters: type,
+    Parameters: ?type = null,
 
     gui: ?GuiOptions = null,
 
@@ -86,7 +90,7 @@ pub const Plugin = struct {
 
     pub var plugin_data: PluginData = undefined;
 
-    pub fn getParam(self: *const Plugin, id: self.Parameters) parameters.ParameterType {
+    pub fn getParam(self: *const Plugin, id: self.Parameters.?) parameters.ParameterType {
         plugin_data.mutex.lock();
         defer plugin_data.mutex.unlock();
 
