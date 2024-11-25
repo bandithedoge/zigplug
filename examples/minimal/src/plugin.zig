@@ -46,7 +46,7 @@ fn setupParameter(T: type, index: u32) zigplug.parameters.Parameter {
     return zigplug.parameters.makeParam(.{}, .{});
 }
 
-fn process(plug: *const zigplug.Plugin, block: zigplug.ProcessBlock) zigplug.ProcessStatus {
+fn process(comptime plug: zigplug.Plugin, block: zigplug.ProcessBlock) zigplug.ProcessStatus {
     _ = plug;
     _ = block;
     return .ok;

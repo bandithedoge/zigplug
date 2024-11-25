@@ -83,7 +83,7 @@ fn setupParameter(T: type, index: u32) zigplug.parameters.Parameter {
     };
 }
 
-fn process(plug: *const zigplug.Plugin, block: zigplug.ProcessBlock) zigplug.ProcessStatus {
+fn process(comptime plug: zigplug.Plugin, block: zigplug.ProcessBlock) zigplug.ProcessStatus {
     for (block.out) |buffer| {
         for (buffer.data) |channel| {
             for (0..buffer.samples) |sample| {
