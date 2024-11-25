@@ -29,10 +29,14 @@ pub const PluginData = struct {
     sample_rate: u32,
     mutex: std.Thread.Mutex,
     parameters: std.ArrayList(parameters.Parameter),
-    gui_created: bool = false,
 
     sample_lock: std.Thread.RwLock,
     sample_data_for_gui: ?ProcessBlock = null,
+
+    gui: ?struct {
+        created: bool,
+        visible: bool,
+    } = null,
 
     pub fn cast(ptr: ?*anyopaque) *PluginData {
         return @ptrCast(@alignCast(ptr));
@@ -49,12 +53,13 @@ pub const GuiOptions = struct {
     min_width: ?u16 = null,
     min_height: ?u16 = null,
     sample_access: bool = false,
+    targetFps: ?f32 = null,
 };
 
 pub const Callbacks = struct {
     init: fn (*const Plugin) void,
     deinit: fn (*const Plugin) void,
-    process: fn (*const Plugin, ProcessBlock) ProcessStatus, // TODO: process events
+    process: fn (comptime Plugin, ProcessBlock) ProcessStatus, // TODO: process events
 
     setupParameter: ?fn (type, u32) parameters.Parameter = null,
 };

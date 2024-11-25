@@ -98,9 +98,10 @@ fn puglBackend(version: ?Version, callbacks: Callbacks) gui.Backend {
                         .cairo => callbacks.render(@ptrCast(c.puglGetContext(data.view)), render_data) catch return c.PUGL_REALIZE_FAILED,
                         else => unreachable,
                     }
+
                 },
                 c.PUGL_UPDATE => {
-                    return c.puglPostRedisplay(view);
+                    _ = c.puglPostRedisplay(view);
                 },
                 else => {},
             }
@@ -176,7 +177,7 @@ fn puglBackend(version: ?Version, callbacks: Callbacks) gui.Backend {
                 try func(plugin);
             }
 
-            plugin.data.gui_created = true;
+            // plugin.data.gui_created = true;
         }
 
         pub fn destroy(comptime plugin: zigplug.Plugin) !void {
@@ -187,7 +188,7 @@ fn puglBackend(version: ?Version, callbacks: Callbacks) gui.Backend {
             c.puglFreeView(data.view);
             c.puglFreeWorld(data.world);
 
-            plugin.data.gui_created = false;
+            // plugin.data.gui_created = false;
         }
 
         pub fn setParent(comptime plugin: zigplug.Plugin, handle: gui.WindowHandle) !void {

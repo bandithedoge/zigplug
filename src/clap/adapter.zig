@@ -27,9 +27,11 @@ fn ClapPlugin(comptime plugin: zigplug.Plugin) type {
             if (has_gui)
                 data.host_timer_support = @ptrCast(@alignCast(data.host.*.get_extension.?(data.host, &clap.CLAP_EXT_TIMER_SUPPORT)));
 
+            const interval = if (comptime plugin.gui) |gui| (if (gui.targetFps) |target| 1000.0 / target) else 200.0;
+
             if (data.host_timer_support) |host_timer_support| {
                 if (host_timer_support.*.register_timer) |register_timer| {
-                    return register_timer(data.host, 200, &data.timer_id);
+                    return register_timer(data.host, @round(interval), &data.timer_id);
                 }
             }
 
@@ -151,7 +153,7 @@ fn ClapPlugin(comptime plugin: zigplug.Plugin) type {
 
             // FIXME: race condition
             // sometimes this function gets called before all parameters are initialized causing an index out of bounds error
-            const status = plugin.callbacks.process(&plugin, block);
+            const status = plugin.callbacks.process(plugin, block);
 
             if (comptime plugin.gui) |gui| {
                 if (comptime gui.sample_access) {
