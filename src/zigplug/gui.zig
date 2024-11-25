@@ -17,6 +17,25 @@ pub const RenderData = struct {
     process_block: ?zigplug.ProcessBlock = null,
 };
 
+pub const Data = struct {
+    created: bool,
+    sample_lock: std.Thread.RwLock = .{},
+    sample_data: ?zigplug.ProcessBlock = null,
+};
+
+pub const Options = struct {
+    backend: Backend,
+
+    resizable: bool = false,
+    keep_aspect: bool = true,
+    default_width: u16 = 800,
+    default_height: u16 = 600,
+    min_width: ?u16 = null,
+    min_height: ?u16 = null,
+    sample_access: bool = false,
+    targetFps: ?f32 = null,
+};
+
 pub const Backend = struct {
     create: fn (comptime zigplug.Plugin) anyerror!void,
     destroy: fn (comptime zigplug.Plugin) anyerror!void,

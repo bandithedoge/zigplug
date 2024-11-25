@@ -30,30 +30,11 @@ pub const PluginData = struct {
     mutex: std.Thread.Mutex,
     parameters: std.ArrayList(parameters.Parameter),
 
-    sample_lock: std.Thread.RwLock,
-    sample_data_for_gui: ?ProcessBlock = null,
-
-    gui: ?struct {
-        created: bool,
-        visible: bool,
-    } = null,
+    gui: ?gui.Data = null,
 
     pub fn cast(ptr: ?*anyopaque) *PluginData {
         return @ptrCast(@alignCast(ptr));
     }
-};
-
-pub const GuiOptions = struct {
-    backend: gui.Backend,
-
-    resizable: bool = false,
-    keep_aspect: bool = true,
-    default_width: u16 = 800,
-    default_height: u16 = 600,
-    min_width: ?u16 = null,
-    min_height: ?u16 = null,
-    sample_access: bool = false,
-    targetFps: ?f32 = null,
 };
 
 pub const Callbacks = struct {
@@ -89,7 +70,7 @@ pub const Plugin = struct {
 
     Parameters: ?type = null,
 
-    gui: ?GuiOptions = null,
+    gui: ?gui.Options = null,
 
     data: *PluginData = &plugin_data,
 

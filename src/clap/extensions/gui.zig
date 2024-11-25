@@ -37,7 +37,6 @@ pub fn Gui(comptime plugin: zigplug.Plugin) type {
             plugin.gui.?.backend.create(plugin) catch return false;
             plugin.data.gui = .{
                 .created = true,
-                .visible = false,
             };
 
             return true;
@@ -50,7 +49,6 @@ pub fn Gui(comptime plugin: zigplug.Plugin) type {
             std.debug.assert(plugin.gui != null and plugin.data.gui != null);
 
             plugin.gui.?.backend.destroy(plugin) catch {};
-            plugin.data.gui.?.visible = false;
             plugin.data.gui.?.created = false;
         }
 
@@ -134,7 +132,6 @@ pub fn Gui(comptime plugin: zigplug.Plugin) type {
             std.debug.assert(plugin.gui != null and plugin.data.gui != null);
 
             plugin.gui.?.backend.show(plugin, true) catch return false;
-            plugin.data.gui.?.visible = true;
 
             return true;
         }
@@ -145,7 +142,6 @@ pub fn Gui(comptime plugin: zigplug.Plugin) type {
             std.debug.assert(plugin.gui != null and plugin.data.gui != null);
 
             plugin.gui.?.backend.show(plugin, false) catch return false;
-            plugin.data.gui.?.visible = false;
 
             return true;
         }

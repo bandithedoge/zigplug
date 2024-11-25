@@ -157,9 +157,11 @@ fn ClapPlugin(comptime plugin: zigplug.Plugin) type {
 
             if (comptime plugin.gui) |gui| {
                 if (comptime gui.sample_access) {
-                    if (plugin.data.sample_lock.tryLock()) {
-                        defer plugin.data.sample_lock.unlock();
-                        plugin.data.sample_data_for_gui = block;
+                    if (plugin.data.gui) |*gui_data| {
+                        if (gui_data.sample_lock.tryLock()) {
+                            defer gui_data.sample_lock.unlock();
+                            gui_data.sample_data = block;
+                        }
                     }
                 }
             }

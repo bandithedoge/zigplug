@@ -87,10 +87,12 @@ fn puglBackend(version: ?Version, callbacks: Callbacks) gui.Backend {
                         .h = event.*.expose.height,
                     };
 
-                    if (plugin_data.sample_data_for_gui) |sample_data| {
-                        plugin_data.sample_lock.lock();
-                        defer plugin_data.sample_lock.unlock();
-                        render_data.process_block = sample_data;
+                    if (plugin_data.gui) |*gui_data| {
+                        if (gui_data.sample_data) |sample_data| {
+                            gui_data.sample_lock.lock();
+                            defer gui_data.sample_lock.unlock();
+                            render_data.process_block = sample_data;
+                        }
                     }
 
                     switch (options.gui_backend) {
@@ -98,7 +100,6 @@ fn puglBackend(version: ?Version, callbacks: Callbacks) gui.Backend {
                         .cairo => callbacks.render(@ptrCast(c.puglGetContext(data.view)), render_data) catch return c.PUGL_REALIZE_FAILED,
                         else => unreachable,
                     }
-
                 },
                 c.PUGL_UPDATE => {
                     _ = c.puglPostRedisplay(view);
