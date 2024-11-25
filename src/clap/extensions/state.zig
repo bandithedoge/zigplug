@@ -19,8 +19,8 @@ pub fn State(comptime plugin: zigplug.Plugin) type {
         pub fn load(clap_plugin: [*c]const clap.clap_plugin_t, stream: [*c]const clap.clap_istream_t) callconv(.C) bool {
             _ = clap_plugin; // autofix
 
-            plugin.data.mutex.lock();
-            defer plugin.data.mutex.unlock();
+            plugin.data.param_lock.lock();
+            defer plugin.data.param_lock.unlock();
 
             const param_count = @typeInfo(plugin.Parameters.?).@"enum".fields.len;
             var buffer: [param_count]zigplug.parameters.Parameter = undefined;

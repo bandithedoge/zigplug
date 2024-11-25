@@ -27,7 +27,7 @@ pub const ProcessStatus = enum {
 pub const PluginData = struct {
     /// hz
     sample_rate: u32,
-    mutex: std.Thread.Mutex,
+    param_lock: std.Thread.RwLock,
     parameters: std.ArrayList(parameters.Parameter),
 
     gui: ?gui.Data = null,
@@ -77,8 +77,8 @@ pub const Plugin = struct {
     pub var plugin_data: PluginData = undefined;
 
     pub fn getParam(self: *const Plugin, id: self.Parameters.?) parameters.ParameterType {
-        plugin_data.mutex.lock();
-        defer plugin_data.mutex.unlock();
+        plugin_data.param_lock.lock();
+        defer plugin_data.param_lock.unlock();
 
         const result = self.data.parameters.items[@intFromEnum(id)].get();
         return result;

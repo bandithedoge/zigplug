@@ -10,8 +10,8 @@ pub fn Parameters(comptime plugin: zigplug.Plugin) type {
             std.debug.assert(plugin.Parameters != null);
             std.debug.assert(plugin.callbacks.setupParameter != null);
 
-            plugin.data.mutex.lock();
-            defer plugin.data.mutex.unlock();
+            plugin.data.param_lock.lock();
+            defer plugin.data.param_lock.unlock();
 
             plugin.data.parameters = std.ArrayList(zigplug.parameters.Parameter).init(plugin.allocator);
 
@@ -38,8 +38,8 @@ pub fn Parameters(comptime plugin: zigplug.Plugin) type {
 
             std.mem.copyBackwards(u8, &info.*.name, param.name);
 
-            plugin.data.mutex.lock();
-            defer plugin.data.mutex.unlock();
+            plugin.data.param_lock.lock();
+            defer plugin.data.param_lock.unlock();
 
             plugin.data.parameters.insert(index, param) catch {
                 unreachable;
@@ -54,8 +54,8 @@ pub fn Parameters(comptime plugin: zigplug.Plugin) type {
             if (id >= @typeInfo(plugin.Parameters.?).@"enum".fields.len)
                 return false;
 
-            plugin.data.mutex.lock();
-            defer plugin.data.mutex.unlock();
+            plugin.data.param_lock.lock();
+            defer plugin.data.param_lock.unlock();
 
             value.* = plugin.data.parameters.items[id].value.toFloat();
 
