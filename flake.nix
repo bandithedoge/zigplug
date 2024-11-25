@@ -23,8 +23,12 @@
           packages = with pkgs; [
             inputs.zig-overlay.packages.${system}.master
             inputs.zls.packages.${system}.zls
-            xorg.libXrandr
             cairo
+            libGL
+            pkg-config
+            xorg.libX11
+            xorg.libXcursor
+            xorg.libXrandr
           ];
         };
       };

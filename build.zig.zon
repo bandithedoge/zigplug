@@ -7,11 +7,6 @@
             .hash = "12204f573701c6605bb3ce4f18c2a7ce1fe3be72fa643e59ea09e46b70c9131a3479",
             .lazy = true,
         },
-        .system_sdk = .{
-            .url = "https://github.com/zig-gamedev/system-sdk/archive/refs/tags/v0.2.0.tar.gz",
-            .hash = "122035336d7535f655fe0ece31cea0fbf8ad2f1e42f64b073995050a425ca8f8fbdc",
-            .lazy = true,
-        },
         .pugl = .{
             .url = "https://github.com/lv2/pugl/archive/edd13c1b952b16633861855fcdbdd164e87b3c0a.tar.gz",
             .hash = "122014ebd228c557711b81b5e7385a68f1a074b5291f13355f00dc9d678f20e5ad83",

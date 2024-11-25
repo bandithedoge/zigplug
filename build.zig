@@ -42,26 +42,18 @@ pub fn build(b: *std.Build) !void {
 
         switch (target.result.os.tag) {
             .linux => {
-                const system_sdk_dep = b.lazyDependency("system_sdk", .{}).?;
-                switch (target.result.cpu.arch) {
-                    .x86_64 => {
-                        zigplug.addLibraryPath(system_sdk_dep.path("linux/lib/x86_64-linux-gnu"));
-                    },
-                    .aarch64 => {
-                        zigplug.addLibraryPath(system_sdk_dep.path("linux/lib/aarch64-linux-gnu"));
-                    },
-                    else => {
-                        _ = b.addFail("GUI not supported on target arch");
-                    },
-                }
                 try pugl_sources.appendSlice(&.{ "src/x11.c", switch (options.gui_backend) {
                     .gl => "src/x11_gl.c",
                     .cairo => "src/x11_cairo.c",
                     else => unreachable,
                 } });
                 pugl.linkLibC();
-                zigplug.linkSystemLibrary("X11", .{});
-                zigplug.linkSystemLibrary("Xrandr", .{});
+                pugl.linkSystemLibrary("X11");
+                pugl.linkSystemLibrary("Xrandr");
+                pugl.linkSystemLibrary("Xcursor");
+
+                if (options.gui_backend == .gl)
+                    zigplug.linkSystemLibrary("gl", .{});
 
                 if (options.gui_backend == .cairo) {
                     pugl.linkSystemLibrary("cairo");
@@ -76,9 +68,6 @@ pub fn build(b: *std.Build) !void {
                     }
                     pugl.addIncludePath(include.getDirectory());
                 }
-
-                pugl.addIncludePath(system_sdk_dep.path("linux/include"));
-                zigplug.addIncludePath(system_sdk_dep.path("linux/include"));
             },
             else => {
                 _ = b.addFail("GUI not supported on target OS");
