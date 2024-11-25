@@ -27,7 +27,7 @@ fn ClapPlugin(comptime plugin: zigplug.Plugin) type {
             if (has_gui)
                 data.host_timer_support = @ptrCast(@alignCast(data.host.*.get_extension.?(data.host, &clap.CLAP_EXT_TIMER_SUPPORT)));
 
-            const interval = if (comptime plugin.gui) |gui| (if (gui.targetFps) |target| 1000.0 / target) else 200.0;
+            const interval = if (comptime plugin.gui) |gui| (if (gui.targetFps) |target| 1000.0 / target else 200.0) else 200.0;
 
             if (data.host_timer_support) |host_timer_support| {
                 if (host_timer_support.*.register_timer) |register_timer| {
