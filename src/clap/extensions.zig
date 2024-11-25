@@ -13,11 +13,7 @@ pub fn getExtension(comptime plugin: zigplug.Plugin, id: [:0]const u8) ?*const a
         return &ext;
     }
 
-    if (comptime plugin.Parameters != null or plugin.callbacks.setupParameter != null) {
-        if (!(plugin.Parameters != null and plugin.callbacks.setupParameter != null)) {
-            @compileError("To support parameters you must define both `Parameters` and `callbacks.setupParameter`.");
-        }
-
+    if (comptime plugin.Parameters != null) {
         if (std.mem.eql(u8, id, &clap.CLAP_EXT_PARAMS)) {
             const parameters = @import("extensions/parameters.zig").Parameters(plugin);
             const ext: clap.clap_plugin_params_t = .{

@@ -36,11 +36,31 @@ pub const plugin: zigplug.Plugin = .{
     .callbacks = .{
         .init = init,
         .deinit = deinit,
-        .setupParameter = setupParameter,
         .process = process,
     },
 
-    .Parameters = enum { gain, frequency, mute },
+    .Parameters = enum {
+        gain,
+        frequency,
+        mute,
+
+        pub fn setup(self: @This()) zigplug.parameters.Parameter {
+            return switch (self) {
+                .gain => zigplug.parameters.makeParam(.{ .float = 1.0 }, .{
+                    .name = "Gain",
+                }),
+                .frequency => zigplug.parameters.makeParam(.{ .uint = 440 }, .{
+                    .name = "Frequency",
+                    .min = .{ .uint = 0 },
+                    .max = .{ .uint = 20000 },
+                    .unit = "Hz",
+                }),
+                .mute => zigplug.parameters.makeParam(.{ .bool = false }, .{
+                    .name = "Mute",
+                }),
+            };
+        }
+    },
 
     .gui = .{
         .backend = zigplug.gui.backends.Cairo.backend(.{
@@ -63,24 +83,6 @@ fn deinit(plug: *const zigplug.Plugin) void {
     _ = plug; // autofix
 
     gpa.deinit();
-}
-
-fn setupParameter(T: type, index: u32) zigplug.parameters.Parameter {
-    const param: T = @enumFromInt(index);
-    return switch (param) {
-        .gain => zigplug.parameters.makeParam(.{ .float = 1.0 }, .{
-            .name = "Gain",
-        }),
-        .frequency => zigplug.parameters.makeParam(.{ .uint = 440 }, .{
-            .name = "Frequency",
-            .min = .{ .uint = 0 },
-            .max = .{ .uint = 20000 },
-            .unit = "Hz",
-        }),
-        .mute => zigplug.parameters.makeParam(.{ .bool = false }, .{
-            .name = "Mute",
-        }),
-    };
 }
 
 fn process(comptime plug: zigplug.Plugin, block: zigplug.ProcessBlock) zigplug.ProcessStatus {

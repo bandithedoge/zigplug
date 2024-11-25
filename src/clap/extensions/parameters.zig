@@ -8,7 +8,6 @@ pub fn Parameters(comptime plugin: zigplug.Plugin) type {
             _ = clap_plugin; // autofix
 
             std.debug.assert(plugin.Parameters != null);
-            std.debug.assert(plugin.callbacks.setupParameter != null);
 
             plugin.data.param_lock.lock();
             defer plugin.data.param_lock.unlock();
@@ -24,7 +23,8 @@ pub fn Parameters(comptime plugin: zigplug.Plugin) type {
             if (index >= @typeInfo(plugin.Parameters.?).@"enum".fields.len)
                 return false;
 
-            const param = plugin.callbacks.setupParameter.?(plugin.Parameters.?, index);
+            // const param = plugin.callbacks.setupParameter.?(plugin.Parameters.?, index);
+            const param = plugin.Parameters.?.setup(@enumFromInt(index));
 
             info.*.id = index;
             info.*.min_value = param.min.toFloat();

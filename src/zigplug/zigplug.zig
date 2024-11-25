@@ -41,8 +41,6 @@ pub const Callbacks = struct {
     init: fn (*const Plugin) void,
     deinit: fn (*const Plugin) void,
     process: fn (comptime Plugin, ProcessBlock) ProcessStatus, // TODO: process events
-
-    setupParameter: ?fn (type, u32) parameters.Parameter = null,
 };
 
 pub const Ports = struct {
