@@ -1,8 +1,6 @@
 const std = @import("std");
 const zigplug = @import("zigplug.zig");
 
-pub const backends = @import("backends/backends.zig");
-
 pub const WindowHandle = union(enum) {
     x11: u64,
     cocoa: *anyopaque,
@@ -43,4 +41,20 @@ pub const Backend = struct {
     show: fn (comptime zigplug.Plugin, bool) anyerror!void,
     tick: fn (comptime zigplug.Plugin) anyerror!void,
     suggestTitle: ?fn (comptime zigplug.Plugin, [:0]const u8) anyerror!void,
+};
+
+pub const backends = struct {
+    const pugl = @import("backends/pugl.zig");
+
+    pub const OpenGl = .{
+        .backend = pugl.openGl,
+        .c = pugl.c,
+    };
+
+    pub const Cairo = .{
+        .backend = pugl.cairo,
+        .c = pugl.c,
+    };
+
+    // TODO: vulkan
 };
