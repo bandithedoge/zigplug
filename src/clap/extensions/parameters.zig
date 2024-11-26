@@ -2,12 +2,15 @@ const std = @import("std");
 const zigplug = @import("zigplug");
 const clap = @import("c");
 
+const events = @import("../events.zig");
+
 pub fn Parameters(comptime plugin: zigplug.Plugin) type {
     return extern struct {
         pub fn count(clap_plugin: [*c]const clap.clap_plugin_t) callconv(.C) u32 {
             _ = clap_plugin; // autofix
 
             std.debug.assert(plugin.Parameters != null);
+            std.debug.assert(@typeInfo(plugin.Parameters.?) == .@"enum");
 
             plugin.data.param_lock.lock();
             defer plugin.data.param_lock.unlock();
@@ -41,9 +44,7 @@ pub fn Parameters(comptime plugin: zigplug.Plugin) type {
             plugin.data.param_lock.lock();
             defer plugin.data.param_lock.unlock();
 
-            plugin.data.parameters.insert(index, param) catch {
-                unreachable;
-            };
+            plugin.data.parameters.insert(index, param) catch unreachable;
 
             return true;
         }
@@ -57,7 +58,9 @@ pub fn Parameters(comptime plugin: zigplug.Plugin) type {
             plugin.data.param_lock.lock();
             defer plugin.data.param_lock.unlock();
 
-            value.* = plugin.data.parameters.items[id].value.toFloat();
+            const param = &plugin.data.parameters.items[id];
+
+            value.* = if (param.main_changed) param.main_value.toFloat() else param.get().toFloat();
 
             return true;
         }
@@ -112,9 +115,13 @@ pub fn Parameters(comptime plugin: zigplug.Plugin) type {
         }
 
         pub fn flush(clap_plugin: [*c]const clap.clap_plugin_t, in: [*c]const clap.clap_input_events_t, out: [*c]const clap.clap_output_events_t) callconv(.C) void {
-            _ = out; // autofix
-            _ = in; // autofix
             _ = clap_plugin; // autofix
+
+            events.syncMainToAudio(plugin, out);
+
+            for (0..in.*.size.?(in)) |i| {
+                events.processEvent(plugin, in.*.get.?(in, @intCast(i)));
+            }
         }
     };
 }

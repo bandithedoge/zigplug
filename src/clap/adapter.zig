@@ -4,6 +4,8 @@ const zigplug = @import("zigplug");
 const options = @import("zigplug_options");
 const clap = @import("c");
 
+const events = @import("events.zig");
+
 const Data = struct {
     host: [*c]const clap.clap_host_t,
     host_timer_support: [*c]const clap.clap_host_timer_support_t = null,
@@ -18,6 +20,8 @@ pub var data: Data = undefined;
 
 fn ClapPlugin(comptime plugin: zigplug.Plugin) type {
     const has_gui = options.with_gui and plugin.gui != null;
+    const has_params = plugin.Parameters != null;
+
     return extern struct {
         fn init(clap_plugin: [*c]const clap.clap_plugin) callconv(.C) bool {
             _ = clap_plugin; // autofix
@@ -80,6 +84,9 @@ fn ClapPlugin(comptime plugin: zigplug.Plugin) type {
         fn process(clap_plugin: [*c]const clap.clap_plugin, clap_process: [*c]const clap.clap_process_t) callconv(.C) clap.clap_process_status {
             _ = clap_plugin;
 
+            if (has_params)
+                events.syncMainToAudio(plugin, clap_process.*.out_events);
+
             const samples = clap_process.*.frames_count;
 
             // process events
@@ -97,7 +104,7 @@ fn ClapPlugin(comptime plugin: zigplug.Plugin) type {
                             break;
                         }
 
-                        @import("events.zig").processEvent(&plugin, event);
+                        events.processEvent(plugin, event);
                         event_index += 1;
 
                         if (event_index == event_count) {
@@ -164,8 +171,6 @@ fn ClapPlugin(comptime plugin: zigplug.Plugin) type {
                     }
                 }
             }
-
-            // TODO: synchronize main and audio threads
 
             return switch (status) {
                 .ok => clap.CLAP_PROCESS_CONTINUE,

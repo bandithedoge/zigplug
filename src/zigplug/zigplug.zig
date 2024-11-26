@@ -75,6 +75,8 @@ pub const Plugin = struct {
     pub var plugin_data: PluginData = undefined;
 
     pub fn getParam(self: *const Plugin, id: self.Parameters.?) parameters.ParameterType {
+        if (self.Parameters == null) @compileError("");
+
         plugin_data.param_lock.lock();
         defer plugin_data.param_lock.unlock();
 

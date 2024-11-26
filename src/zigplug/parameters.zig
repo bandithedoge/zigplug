@@ -54,6 +54,10 @@ pub const Parameter = struct {
 
     /// do not modify directly, use `set()` and `get()` to handle types properly
     value: ParameterType = .{ .float = 0.0 },
+    changed: bool = false,
+
+    main_changed: bool = false,
+    main_value: ParameterType = undefined,
 
     pub fn set(self: *Parameter, val: ParameterType) void {
         self.value = val;
