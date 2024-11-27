@@ -68,7 +68,7 @@ pub const Parameter = struct {
     }
 };
 
-const Options = struct {
+pub const Options = struct {
     name: [:0]const u8,
     min: ?ParameterType = null,
     max: ?ParameterType = null,

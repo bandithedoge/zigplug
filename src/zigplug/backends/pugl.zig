@@ -52,6 +52,7 @@ fn handleError(status: c.PuglStatus) PuglError!void {
     }
 }
 
+// TODO: don't use global variables
 var data: struct {
     world: ?*c.PuglWorld = null,
     view: ?*c.PuglView = null,
