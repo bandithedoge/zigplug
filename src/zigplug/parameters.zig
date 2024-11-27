@@ -44,7 +44,7 @@ pub const ParameterType = union(enum) {
     }
 };
 
-/// do not create this directly, use the `<type>Param()` functions
+/// do not create this directly, use the `makeParam()` function
 pub const Parameter = struct {
     name: [:0]const u8,
     default: ParameterType,

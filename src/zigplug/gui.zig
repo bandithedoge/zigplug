@@ -15,7 +15,6 @@ pub const RenderData = struct {
     process_block: ?zigplug.ProcessBlock = null,
 };
 
-// TODO: expose parameters to gui
 pub const Data = struct {
     created: bool,
     sample_lock: std.Thread.RwLock = .{},
