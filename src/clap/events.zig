@@ -64,6 +64,11 @@ pub fn processEvent(comptime plugin: zigplug.Plugin, event: *const clap.clap_eve
                 const param = &plugin.data.parameters.items[value_event.param_id];
                 param.value.fromFloat(value_event.value);
                 param.changed = true;
+
+                if (comptime plugin.gui) |gui| {
+                    if (plugin.data.gui.?.visible)
+                        gui.backend.tick(plugin, .ParamChanged) catch {};
+                }
             },
             else => {},
         }

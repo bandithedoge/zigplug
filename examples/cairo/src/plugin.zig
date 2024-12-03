@@ -63,6 +63,7 @@ pub const plugin: zigplug.Plugin = .{
         .backend = zigplug.gui.backends.Cairo.backend(.{
             .render = render,
         }),
+        .resizable = true,
     },
 
     .allocator = gpa.allocator(),
@@ -95,6 +96,7 @@ fn process(comptime plug: zigplug.Plugin, block: zigplug.ProcessBlock) zigplug.P
 const c = zigplug.gui.backends.Cairo.c;
 
 fn render(cr: *c.cairo_t, render_data: zigplug.gui.RenderData) !void {
+    std.debug.print("chuj\n", .{});
     c.cairo_rectangle(
         cr,
         @floatFromInt(render_data.x),

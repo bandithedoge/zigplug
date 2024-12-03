@@ -37,6 +37,7 @@ pub fn Gui(comptime plugin: zigplug.Plugin) type {
             plugin.gui.?.backend.create(plugin) catch return false;
             plugin.data.gui = .{
                 .created = true,
+                .visible = false,
             };
 
             return true;
@@ -49,6 +50,7 @@ pub fn Gui(comptime plugin: zigplug.Plugin) type {
             std.debug.assert(plugin.gui != null and plugin.data.gui != null);
 
             plugin.gui.?.backend.destroy(plugin) catch {};
+            plugin.data.gui.?.visible = false;
             plugin.data.gui.?.created = false;
         }
 
@@ -89,6 +91,14 @@ pub fn Gui(comptime plugin: zigplug.Plugin) type {
         pub fn set_size(clap_plugin: [*c]const clap.clap_plugin_t, width: u32, height: u32) callconv(.C) bool {
             _ = clap_plugin; // autofix
             log.info("set_size({}, {})", .{ width, height });
+
+            if (comptime plugin.gui) |gui| {
+                if (gui.backend.setSize) |setSize| {
+                    setSize(plugin, width, height) catch return false;
+                }
+                gui.backend.tick(plugin, .SizeChanged) catch return false;
+            }
+
             return true;
         }
 
@@ -132,6 +142,7 @@ pub fn Gui(comptime plugin: zigplug.Plugin) type {
             std.debug.assert(plugin.gui != null and plugin.data.gui != null);
 
             plugin.gui.?.backend.show(plugin, true) catch return false;
+            plugin.data.gui.?.visible = true;
 
             return true;
         }
@@ -142,6 +153,7 @@ pub fn Gui(comptime plugin: zigplug.Plugin) type {
             std.debug.assert(plugin.gui != null and plugin.data.gui != null);
 
             plugin.gui.?.backend.show(plugin, false) catch return false;
+            plugin.data.gui.?.visible = false;
 
             return true;
         }

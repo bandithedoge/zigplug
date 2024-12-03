@@ -4,6 +4,8 @@ const options = @import("zigplug_options");
 const zigplug = @import("../zigplug.zig");
 const gui = @import("../gui.zig");
 
+const log = std.log.scoped(.Pugl);
+
 pub const c = @cImport({
     @cInclude("pugl/pugl.h");
     switch (options.gui_backend) {
@@ -102,9 +104,9 @@ fn puglBackend(version: ?Version, callbacks: Callbacks) gui.Backend {
                         else => unreachable,
                     }
                 },
-                c.PUGL_UPDATE => {
-                    _ = c.puglPostRedisplay(view);
-                },
+                // c.PUGL_UPDATE => {
+                //     _ = c.puglPostRedisplay(view);
+                // },
                 else => {},
             }
 
@@ -212,15 +214,27 @@ fn puglBackend(version: ?Version, callbacks: Callbacks) gui.Backend {
             }
         }
 
+        pub fn tick(comptime plugin: zigplug.Plugin, event: gui.Event) !void {
+            _ = plugin; // autofix
+            log.debug("tick({})", .{event});
+
+            switch (event) {
+                .ParamChanged, .StateChanged, => try handleError(c.puglPostRedisplay(data.view)),
+                else => {},
+            }
+            try handleError(c.puglUpdate(data.world, 0));
+        }
+
         pub fn suggestTitle(comptime plugin: zigplug.Plugin, title: [:0]const u8) !void {
             _ = plugin; // autofix
 
             try handleError(c.puglSetViewString(data.view, c.PUGL_WINDOW_TITLE, title.ptr));
         }
 
-        pub fn tick(comptime plugin: zigplug.Plugin) !void {
+        pub fn setSize(comptime plugin: zigplug.Plugin, w: u32, h: u32) !void {
             _ = plugin; // autofix
-            try handleError(c.puglUpdate(data.world, 0));
+
+            try handleError(c.puglSetSize(data.view, w, h));
         }
     };
 
@@ -231,6 +245,7 @@ fn puglBackend(version: ?Version, callbacks: Callbacks) gui.Backend {
         .show = B.show,
         .tick = B.tick,
         .suggestTitle = B.suggestTitle,
+        .setSize = B.setSize,
     };
 }
 

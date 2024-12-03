@@ -77,8 +77,8 @@ pub const Plugin = struct {
     pub fn getParam(self: *const Plugin, id: self.Parameters.?) parameters.ParameterType {
         if (self.Parameters == null) @compileError("");
 
-        plugin_data.param_lock.lock();
-        defer plugin_data.param_lock.unlock();
+        // plugin_data.param_lock.lock();
+        // defer plugin_data.param_lock.unlock();
 
         const result = self.data.parameters.items[@intFromEnum(id)].get();
         return result;

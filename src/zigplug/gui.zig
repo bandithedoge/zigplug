@@ -17,6 +17,7 @@ pub const RenderData = struct {
 
 pub const Data = struct {
     created: bool,
+    visible: bool,
     sample_lock: std.Thread.RwLock = .{},
     sample_data: ?zigplug.ProcessBlock = null,
 };
@@ -34,13 +35,16 @@ pub const Options = struct {
     targetFps: ?f32 = null,
 };
 
+pub const Event = enum { Idle, ParamChanged, StateChanged, SizeChanged };
+
 pub const Backend = struct {
     create: fn (comptime zigplug.Plugin) anyerror!void,
     destroy: fn (comptime zigplug.Plugin) anyerror!void,
     setParent: fn (comptime zigplug.Plugin, WindowHandle) anyerror!void,
     show: fn (comptime zigplug.Plugin, bool) anyerror!void,
-    tick: fn (comptime zigplug.Plugin) anyerror!void,
+    tick: fn (comptime zigplug.Plugin, Event) anyerror!void,
     suggestTitle: ?fn (comptime zigplug.Plugin, [:0]const u8) anyerror!void,
+    setSize: ?fn (comptime zigplug.Plugin, u32, u32) anyerror!void,
 };
 
 pub const backends = struct {

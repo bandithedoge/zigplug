@@ -9,7 +9,7 @@ pub fn TimerSupport(comptime plugin: zigplug.Plugin) type {
             _ = clap_plugin; // autofix
             if (plugin.data.gui) |gui| {
                 if (gui.created)
-                    plugin.gui.?.backend.tick(plugin) catch {};
+                    plugin.gui.?.backend.tick(plugin, .Idle) catch {};
             }
         }
     };
