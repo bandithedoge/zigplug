@@ -9,6 +9,7 @@ const events = @import("events.zig");
 const Data = struct {
     host: [*c]const clap.clap_host_t,
     host_timer_support: [*c]const clap.clap_host_timer_support_t = null,
+    host_gui: [*c]const clap.clap_host_gui_t = null,
     timer_id: clap.clap_id = undefined,
 
     pub fn cast(ptr: [*c]const clap.clap_plugin_t) *Data {
@@ -27,8 +28,10 @@ fn ClapPlugin(comptime plugin: zigplug.Plugin) type {
             _ = clap_plugin; // autofix
             zigplug.log.debug("init()\n", .{});
 
-            if (has_gui)
+            if (has_gui) {
                 data.host_timer_support = @ptrCast(@alignCast(data.host.*.get_extension.?(data.host, &clap.CLAP_EXT_TIMER_SUPPORT)));
+                data.host_gui = @ptrCast(@alignCast(data.host.*.get_extension.?(data.host, &clap.CLAP_EXT_GUI)));
+            }
 
             const interval = if (comptime plugin.gui) |gui| (if (gui.targetFps) |target| 1000.0 / target else 200.0) else 200.0;
 

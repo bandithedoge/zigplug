@@ -27,7 +27,7 @@ pub fn build(b: *std.Build) !void {
         },
     });
 
-    if (options.with_gui and (options.gui_backend == .gl or options.gui_backend == .cairo)) {
+    if (options.with_gui) {
         const pugl_dep = b.lazyDependency("pugl", .{});
         const pugl = b.addStaticLibrary(.{
             .name = "pugl",
@@ -52,21 +52,22 @@ pub fn build(b: *std.Build) !void {
                 pugl.linkSystemLibrary("Xrandr");
                 pugl.linkSystemLibrary("Xcursor");
 
-                if (options.gui_backend == .gl)
-                    zigplug.linkSystemLibrary("gl", .{});
+                switch (options.gui_backend) {
+                    .gl => zigplug.linkSystemLibrary("gl", .{}),
+                    .cairo => {
+                        pugl.linkSystemLibrary("cairo");
 
-                if (options.gui_backend == .cairo) {
-                    pugl.linkSystemLibrary("cairo");
-
-                    // HACK: cairo headers are located in a "cairo/" subdirectory when imported in zig,
-                    // yet pugl expects them to be in the top-level include dir.
-                    // this should be turned into a patch or better yet a fork of pugl/cairo with the build system replaced with zig.
-                    const include = b.addWriteFiles();
-                    const headers = &[_][]const u8{ "cairo-xlib.h", "cairo.h" };
-                    for (headers) |h| {
-                        _ = include.add(h, try std.fmt.allocPrint(b.allocator, "#include <cairo/{s}>", .{h}));
-                    }
-                    pugl.addIncludePath(include.getDirectory());
+                        // HACK: cairo headers are located in a "cairo/" subdirectory when imported in zig,
+                        // yet pugl expects them to be in the top-level include dir.
+                        // this should be turned into a patch or better yet a fork of pugl/cairo with the build system replaced with zig.
+                        const include = b.addWriteFiles();
+                        const headers = &[_][]const u8{ "cairo-xlib.h", "cairo.h" };
+                        for (headers) |h| {
+                            _ = include.add(h, try std.fmt.allocPrint(b.allocator, "#include <cairo/{s}>", .{h}));
+                        }
+                        pugl.addIncludePath(include.getDirectory());
+                    },
+                    else => unreachable,
                 }
             },
             else => {

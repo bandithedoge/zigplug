@@ -63,7 +63,7 @@ pub const plugin: zigplug.Plugin = .{
     },
 
     .gui = .{
-        .backend = zigplug.gui.backends.OpenGl.backend(.gles2_0, .{
+        .backend = zigplug.gui.backends.openGl(.gles2_0, .{
             .render = render,
         }),
     },
@@ -103,7 +103,7 @@ fn process(comptime plug: zigplug.Plugin, block: zigplug.ProcessBlock) zigplug.P
     return .ok;
 }
 
-const gl = zigplug.gui.backends.OpenGl.c;
+const gl = zigplug.gui.pugl.c;
 
 fn render(_: zigplug.gui.RenderData) !void {
     // TODO: write a better opengl example (spinning cube?)

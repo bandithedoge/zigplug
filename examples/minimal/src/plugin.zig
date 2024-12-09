@@ -19,12 +19,9 @@ pub const plugin: zigplug.Plugin = .{
         .out = &.{},
     },
 
-    .Parameters = enum {},
-
     .callbacks = .{
         .init = init,
         .deinit = deinit,
-        .setupParameter = setupParameter,
         .process = process,
     },
 };
@@ -37,13 +34,6 @@ fn init(plug: *const zigplug.Plugin) void {
 fn deinit(plug: *const zigplug.Plugin) void {
     _ = plug;
     gpa.deinit();
-}
-
-fn setupParameter(T: type, index: u32) zigplug.parameters.Parameter {
-    _ = T;
-    _ = index;
-
-    return zigplug.parameters.makeParam(.{}, .{});
 }
 
 fn process(comptime plug: zigplug.Plugin, block: zigplug.ProcessBlock) zigplug.ProcessStatus {

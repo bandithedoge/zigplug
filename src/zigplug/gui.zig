@@ -1,5 +1,6 @@
 const std = @import("std");
 const zigplug = @import("zigplug.zig");
+pub const pugl = @import("pugl.zig");
 
 pub const WindowHandle = union(enum) {
     x11: u64,
@@ -20,6 +21,7 @@ pub const Data = struct {
     visible: bool,
     sample_lock: std.Thread.RwLock = .{},
     sample_data: ?zigplug.ProcessBlock = null,
+    requestResize: ?*const fn (u32, u32) bool = null,
 };
 
 pub const Options = struct {
@@ -37,6 +39,11 @@ pub const Options = struct {
 
 pub const Event = enum { Idle, ParamChanged, StateChanged, SizeChanged };
 
+pub const Size = struct {
+    w: u32,
+    h: u32,
+};
+
 pub const Backend = struct {
     create: fn (comptime zigplug.Plugin) anyerror!void,
     destroy: fn (comptime zigplug.Plugin) anyerror!void,
@@ -45,20 +52,10 @@ pub const Backend = struct {
     tick: fn (comptime zigplug.Plugin, Event) anyerror!void,
     suggestTitle: ?fn (comptime zigplug.Plugin, [:0]const u8) anyerror!void,
     setSize: ?fn (comptime zigplug.Plugin, u32, u32) anyerror!void,
+    getSize: ?fn (comptime zigplug.Plugin) anyerror!Size,
 };
 
 pub const backends = struct {
-    const pugl = @import("backends/pugl.zig");
-
-    pub const OpenGl = .{
-        .backend = pugl.openGl,
-        .c = pugl.c,
-    };
-
-    pub const Cairo = .{
-        .backend = pugl.cairo,
-        .c = pugl.c,
-    };
-
-    // TODO: vulkan
+    pub const openGl = pugl.openGl;
+    pub const cairo = pugl.cairo;
 };

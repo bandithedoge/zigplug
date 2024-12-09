@@ -5,7 +5,7 @@ var gpa = std.heap.GeneralPurposeAllocator(.{}){};
 
 pub const plugin: zigplug.Plugin = .{
     .id = "com.bandithedoge.zigplug",
-    .name = "zigplug",
+    .name = "zigplug meter",
     .vendor = "bandithedoge",
     .url = "https://bandithedoge.com/zigplug",
     .version = "0.0.1",
@@ -31,7 +31,7 @@ pub const plugin: zigplug.Plugin = .{
     },
 
     .gui = .{
-        .backend = zigplug.gui.backends.Cairo.backend(.{
+        .backend = zigplug.gui.backends.cairo(.{
             .render = render,
         }),
         .sample_access = true,
@@ -63,7 +63,7 @@ fn process(comptime plug: zigplug.Plugin, block: zigplug.ProcessBlock) zigplug.P
     return .ok;
 }
 
-const c = zigplug.gui.backends.Cairo.c;
+const c = zigplug.gui.pugl.c;
 
 var gui_state: struct {
     lock: std.Thread.RwLock = .{},

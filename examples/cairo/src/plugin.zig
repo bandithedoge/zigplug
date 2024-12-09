@@ -9,7 +9,7 @@ var gpa = std.heap.GeneralPurposeAllocator(.{}){};
 
 pub const plugin: zigplug.Plugin = .{
     .id = "com.bandithedoge.zigplug",
-    .name = "zigplug",
+    .name = "zigplug cairo",
     .vendor = "bandithedoge",
     .url = "https://bandithedoge.com/zigplug",
     .version = "0.0.1",
@@ -60,7 +60,7 @@ pub const plugin: zigplug.Plugin = .{
     },
 
     .gui = .{
-        .backend = zigplug.gui.backends.Cairo.backend(.{
+        .backend = zigplug.gui.backends.cairo(.{
             .render = render,
         }),
         .resizable = true,
@@ -93,10 +93,9 @@ fn process(comptime plug: zigplug.Plugin, block: zigplug.ProcessBlock) zigplug.P
     return .ok;
 }
 
-const c = zigplug.gui.backends.Cairo.c;
+fn render(cr: *zigplug.gui.pugl.c.cairo_t, render_data: zigplug.gui.RenderData) !void {
+    const c = zigplug.gui.pugl.c;
 
-fn render(cr: *c.cairo_t, render_data: zigplug.gui.RenderData) !void {
-    std.debug.print("chuj\n", .{});
     c.cairo_rectangle(
         cr,
         @floatFromInt(render_data.x),

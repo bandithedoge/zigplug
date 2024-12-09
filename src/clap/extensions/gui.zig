@@ -2,7 +2,7 @@ const std = @import("std");
 const builtin = @import("builtin");
 const zigplug = @import("zigplug");
 const clap = @import("c");
-const adapter = @import("clap_adapter");
+const adapter = @import("../adapter.zig");
 
 const preferred_api: [:0]u8 = switch (builtin.target.os.tag) {
     .linux => @constCast(&clap.CLAP_WINDOW_API_X11),
@@ -28,6 +28,10 @@ pub fn Gui(comptime plugin: zigplug.Plugin) type {
             return true;
         }
 
+        fn requestResize(w: u32, h: u32) bool {
+            return adapter.data.host_gui.*.request_resize.?(adapter.data.host.?, w, h);
+        }
+
         pub fn create(clap_plugin: [*c]const clap.clap_plugin_t, api: [*c]const u8, is_floating: bool) callconv(.C) bool {
             _ = clap_plugin; // autofix
             log.info("create({s}, {})", .{ api, is_floating });
@@ -38,6 +42,7 @@ pub fn Gui(comptime plugin: zigplug.Plugin) type {
             plugin.data.gui = .{
                 .created = true,
                 .visible = false,
+                .requestResize = requestResize,
             };
 
             return true;
@@ -62,10 +67,17 @@ pub fn Gui(comptime plugin: zigplug.Plugin) type {
         }
 
         pub fn get_size(clap_plugin: [*c]const clap.clap_plugin_t, width: [*c]u32, height: [*c]u32) callconv(.C) bool {
-            _ = height; // autofix
-            _ = width; // autofix
             _ = clap_plugin; // autofix
             log.info("get_size()", .{});
+
+            if (plugin.gui.?.backend.getSize) |getSize| {
+                const size = getSize(plugin) catch return false;
+                width.* = size.w;
+                height.* = size.h;
+            } else {
+                width.* = plugin.gui.?.default_width;
+                height.* = plugin.gui.?.default_height;
+            }
 
             return true;
         }
