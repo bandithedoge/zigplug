@@ -40,23 +40,20 @@ pub const plugin: zigplug.Plugin = .{
     },
 
     .Parameters = enum {
-        gain,
-        frequency,
-        mute,
+        red,
+        green,
+        blue,
 
         pub fn setup(self: @This()) zigplug.parameters.Parameter {
             return switch (self) {
-                .gain => zigplug.parameters.makeParam(.{ .float = 1.0 }, .{
-                    .name = "Gain",
+                .red => zigplug.parameters.makeParam(.{ .float = 0.0 }, .{
+                    .name = "Red",
                 }),
-                .frequency => zigplug.parameters.makeParam(.{ .uint = 440 }, .{
-                    .name = "Frequency",
-                    .min = .{ .uint = 0 },
-                    .max = .{ .uint = 20000 },
-                    .unit = "Hz",
+                .green => zigplug.parameters.makeParam(.{ .float = 0.0 }, .{
+                    .name = "Green",
                 }),
-                .mute => zigplug.parameters.makeParam(.{ .bool = false }, .{
-                    .name = "Mute",
+                .blue => zigplug.parameters.makeParam(.{ .float = 0.0 }, .{
+                    .name = "Blue",
                 }),
             };
         }
@@ -86,18 +83,10 @@ fn deinit(plug: *const zigplug.Plugin) void {
 }
 
 fn process(comptime plug: zigplug.Plugin, block: zigplug.ProcessBlock) zigplug.ProcessStatus {
-    for (block.out) |buffer| {
-        for (buffer.data) |channel| {
-            for (0..buffer.samples) |sample| {
-                // TODO: write a better sine wave example...
-                channel[sample] = if (plug.getParam(.mute).bool)
-                    0
-                else
-                    @sin(state.phase * 2.0 * std.math.pi) * 0.2 * plug.getParam(.gain).float;
-
-                state.phase += @as(f32, @floatFromInt(plug.getParam(.frequency).uint)) / @as(f32, @floatFromInt(plug.data.sample_rate));
-                state.phase -= @floor(state.phase);
-            }
+    _ = plug; // autofix
+    for (block.out, 0..) |buffer, buffer_i| {
+        for (buffer.data, 0..) |channel, channel_i| {
+            std.mem.copyForwards(f32, channel[0..buffer.samples], block.in[buffer_i].data[channel_i][0..buffer.samples]);
         }
     }
     return .ok;
@@ -107,6 +96,6 @@ const gl = zigplug.gui.pugl.c;
 
 fn render(_: zigplug.gui.RenderData) !void {
     // TODO: write a better opengl example (spinning cube?)
-    gl.glClearColor(0, 1, 0, 0);
+    gl.glClearColor(plugin.getParam(.red).float, plugin.getParam(.green).float, plugin.getParam(.blue).float, 0);
     gl.glClear(gl.GL_COLOR_BUFFER_BIT | gl.GL_DEPTH_BUFFER_BIT);
 }
