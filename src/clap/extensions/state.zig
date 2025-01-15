@@ -14,7 +14,7 @@ pub fn State(comptime plugin: zigplug.Plugin) type {
 
             _ = events.syncAudioToMain(plugin);
 
-            const param_count = @typeInfo(plugin.Parameters.?).@"enum".fields.len;
+            const param_count = @typeInfo(plugin.Parameters.?).Enum.fields.len;
             var params = plugin.data.parameters.clone() catch {
                 return false;
             };
@@ -37,7 +37,7 @@ pub fn State(comptime plugin: zigplug.Plugin) type {
             plugin.data.param_lock.lock();
             defer plugin.data.param_lock.unlock();
 
-            const param_count = @typeInfo(plugin.Parameters.?).@"enum".fields.len;
+            const param_count = @typeInfo(plugin.Parameters.?).Enum.fields.len;
             var buffer: [param_count]zigplug.parameters.Parameter = undefined;
 
             const result = @sizeOf(zigplug.parameters.Parameter) * param_count == stream.*.read.?(stream, &buffer, @sizeOf(zigplug.parameters.Parameter) * param_count);

@@ -5,7 +5,7 @@ pub fn syncMainToAudio(comptime plugin: zigplug.Plugin, out: [*c]const clap.clap
     plugin.data.param_lock.lock();
     defer plugin.data.param_lock.unlock();
 
-    for (0..@typeInfo(plugin.Parameters.?).@"enum".fields.len) |i| {
+    for (0..@typeInfo(plugin.Parameters.?).Enum.fields.len) |i| {
         const param = &plugin.data.parameters.items[i];
         if (param.main_changed) {
             param.set(param.main_value);
@@ -39,7 +39,7 @@ pub fn syncAudioToMain(comptime plugin: zigplug.Plugin) bool {
     plugin.data.param_lock.lock();
     defer plugin.data.param_lock.unlock();
 
-    for (0..@typeInfo(plugin.Parameters.?).@"enum".fields.len) |i| {
+    for (0..@typeInfo(plugin.Parameters.?).Enum.fields.len) |i| {
         const param = &plugin.data.parameters.items[i];
         if (param.changed) {
             param.main_value = param.get();

@@ -6,7 +6,7 @@ pub fn build(b: *std.Build) !void {
     const optimize = b.standardOptimizeOption(.{});
 
     const plugin = b.addStaticLibrary(.{
-        .name = "zigplug_example",
+        .name = "cairo_example",
         .target = target,
         .optimize = optimize,
         .root_source_file = b.path("src/plugin.zig"),
@@ -17,6 +17,8 @@ pub fn build(b: *std.Build) !void {
         .with_gui = true,
         .gui_backend = .cairo,
     });
+
+    // plugin.root_module.addImport("zigplug", zigplug_dep.module("zigplug"));
 
     const builder = zigplug.PluginBuilder.new(plugin, zigplug_dep);
 

@@ -7,12 +7,13 @@ const gui = @import("gui.zig");
 const log = std.log.scoped(.Pugl);
 
 pub const c = @cImport({
+    @cDefine("PUGL_STATIC", {});
     @cInclude("pugl/pugl.h");
     switch (options.gui_backend) {
         .gl => @cInclude("pugl/gl.h"),
         .cairo => {
             @cInclude("pugl/cairo.h");
-            @cInclude("cairo/cairo.h");
+            @cInclude("cairo.h");
         },
         else => unreachable,
     }
@@ -98,9 +99,6 @@ fn puglBackend(api: enum { gl, cairo }, version: ?Version, callbacks: Callbacks)
                         }
                     }
 
-                    // HACK: https://github.com/lv2/pugl/issues/98
-                    _ = c.puglSetPosition(data.view, 0, 0);
-
                     switch (options.gui_backend) {
                         .gl => callbacks.render(render_data) catch return c.PUGL_REALIZE_FAILED,
                         .cairo => callbacks.render(@ptrCast(c.puglGetContext(data.view)), render_data) catch return c.PUGL_REALIZE_FAILED,
@@ -182,6 +180,9 @@ fn puglBackend(api: enum { gl, cairo }, version: ?Version, callbacks: Callbacks)
             if (callbacks.create) |func| {
                 try func(plugin);
             }
+
+            // HACK: https://github.com/lv2/pugl/issues/98
+            _ = c.puglSetPosition(data.view, 0, 0);
 
             // plugin.data.gui_created = true;
         }

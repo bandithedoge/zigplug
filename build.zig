@@ -33,6 +33,7 @@ pub fn build(b: *std.Build) !void {
             .name = "pugl",
             .target = target,
             .optimize = optimize,
+            .link_libc = true,
         });
         pugl.addIncludePath(pugl_dep.?.path("include"));
 
@@ -47,31 +48,36 @@ pub fn build(b: *std.Build) !void {
                     .cairo => "src/x11_cairo.c",
                     else => unreachable,
                 } });
-                pugl.linkLibC();
                 pugl.linkSystemLibrary("X11");
-                pugl.linkSystemLibrary("Xrandr");
-                pugl.linkSystemLibrary("Xcursor");
 
                 switch (options.gui_backend) {
                     .gl => zigplug.linkSystemLibrary("gl", .{}),
                     .cairo => {
-                        pugl.linkSystemLibrary("cairo");
+                        if (b.lazyDependency("cairo", .{
+                            .target = target,
+                            .optimize = optimize,
+                            .use_zlib = false,
+                            .use_glib = false,
+                            .symbol_lookup = false,
+                        })) |cairo| {
+                            zigplug.linkLibrary(cairo.artifact("cairo"));
 
-                        // HACK: cairo headers are located in a "cairo/" subdirectory when imported in zig,
-                        // yet pugl expects them to be in the top-level include dir.
-                        // this should be turned into a patch or better yet a fork of pugl/cairo with the build system replaced with zig.
-                        const include = b.addWriteFiles();
-                        const headers = &[_][]const u8{ "cairo-xlib.h", "cairo.h" };
-                        for (headers) |h| {
-                            _ = include.add(h, try std.fmt.allocPrint(b.allocator, "#include <cairo/{s}>", .{h}));
+                            // HACK: cairo headers are located in a "cairo/" subdirectory when imported in zig,
+                            // yet pugl expects them to be in the top-level include dir.
+                            // this should be turned into a patch or better yet a fork of pugl/cairo with the build system replaced with zig.
+                            const include = b.addWriteFiles();
+                            const headers = &[_][]const u8{ "cairo-xlib.h", "cairo.h" };
+                            for (headers) |h| {
+                                _ = include.add(h, try std.fmt.allocPrint(b.allocator, "#include <cairo/{s}>", .{h}));
+                            }
+                            pugl.addIncludePath(include.getDirectory());
                         }
-                        pugl.addIncludePath(include.getDirectory());
                     },
                     else => unreachable,
                 }
             },
             else => {
-                _ = b.addFail("GUI not supported on target OS");
+                _ = @panic("GUI not supported on target OS");
             },
         }
 
@@ -127,7 +133,7 @@ pub const PluginBuilder = struct {
         const name = try std.mem.concat(b.allocator, u8, &[_][]const u8{ self.object.name, ".clap" });
 
         const entry = b.addWriteFile("clap_entry.zig",
-            \\ export const clap_entry = @import("clap_adapter").clap_entry(@import("plugin").plugin);
+            \\ export const clap_entry = @import("clap_adapter").clap_entry(@import("plugin_root").plugin);
         );
         entry.step.dependOn(&self.object.step);
 
@@ -138,9 +144,7 @@ pub const PluginBuilder = struct {
             .optimize = self.object.root_module.optimize orelse b.standardOptimizeOption(.{}),
         });
         clap.step.dependOn(&entry.step);
-        clap.root_module.linkLibrary(self.object);
-        clap.root_module.addImport("plugin", &self.object.root_module);
-
+        clap.root_module.addImport("plugin_root", &self.object.root_module);
         clap.root_module.addImport("clap_adapter", self.zigplug.module("clap_adapter"));
 
         const install = self.object.step.owner.addInstallArtifact(clap, .{
