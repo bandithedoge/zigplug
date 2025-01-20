@@ -9,7 +9,7 @@ pub fn build(b: *std.Build) !void {
         .name = "cairo_example",
         .target = target,
         .optimize = optimize,
-        .root_source_file = b.path("src/plugin.zig"),
+        .root_source_file = b.path("src/Plugin.zig"),
     });
 
     const zigplug_dep = b.dependency("zigplug", .{
