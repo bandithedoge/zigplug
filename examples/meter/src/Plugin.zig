@@ -78,7 +78,6 @@ fn render(cr: *cairo.cairo_t, render_data: zigplug.gui.RenderData) !void {
     );
 
     if (render_data.process_block) |block| {
-        std.debug.print("chuj", .{});
         for (block.in) |buffer| {
             for (buffer.data, 0..) |channel, channel_i| {
                 for (0..buffer.samples) |i| {

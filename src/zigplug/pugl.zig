@@ -95,7 +95,7 @@ fn puglBackend(api: enum { gl, cairo }, version: ?Version, callbacks: Callbacks)
                     };
 
                     if (plugin_data.gui) |*gui_d| {
-                        if (plugin_data.gui.?.sample_data) |sample_data| {
+                        if (gui_d.sample_data) |sample_data| {
                             gui_d.sample_lock.lock();
                             defer gui_d.sample_lock.unlock();
                             render_data.process_block = sample_data;
@@ -108,9 +108,6 @@ fn puglBackend(api: enum { gl, cairo }, version: ?Version, callbacks: Callbacks)
                         else => unreachable,
                     }
                 },
-                // c.PUGL_UPDATE => {
-                //     _ = c.puglPostRedisplay(view);
-                // },
                 else => {},
             }
 
@@ -221,13 +218,11 @@ fn puglBackend(api: enum { gl, cairo }, version: ?Version, callbacks: Callbacks)
         }
 
         pub fn tick(comptime plugin: type, event: gui.Event) !void {
-            _ = plugin; // autofix
             log.debug("tick({})", .{event});
 
             switch (event) {
-                .ParamChanged,
-                .StateChanged,
-                => try handleError(c.puglPostRedisplay(gui_data.view)),
+                .ParamChanged, .StateChanged => try handleError(c.puglPostRedisplay(gui_data.view)),
+                .Idle => if (plugin.desc.gui.?.targetFps != null) try handleError(c.puglPostRedisplay(gui_data.view)),
                 else => {},
             }
             try handleError(c.puglUpdate(gui_data.world, 0));
