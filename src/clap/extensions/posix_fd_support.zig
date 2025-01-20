@@ -1,16 +1,22 @@
+const std = @import("std");
 const zigplug = @import("zigplug");
-const clap = @import("c");
+const c = @import("clap_c");
 
-pub fn PosixFdSupport(comptime plugin: zigplug.Plugin) type {
-    return extern struct {
-        pub fn on_fd(clap_plugin: [*c]const clap.clap_plugin_t, fd: c_int, flags: clap.clap_posix_fd_flags_t) callconv(.C) void {
-            _ = flags; // autofix
-            _ = fd; // autofix
+const log = std.log.scoped(.ClapPosixFdSupport);
+
+pub fn PosixFdSupport(comptime Plugin: type) *const c.clap_plugin_posix_fd_support_t {
+    const posix_fd_support = struct {
+        pub fn on_fd(clap_plugin: [*c]const c.clap_plugin_t, fd: c_int, flags: c.clap_posix_fd_flags_t) callconv(.C) void {
+            log.debug("on_fd({}, {})", .{fd, flags});
             _ = clap_plugin; // autofix
 
-            if (comptime plugin.gui) |gui| {
-                gui.backend.tick(plugin, .Idle) catch {};
+            if (comptime Plugin.desc.gui) |gui| {
+                gui.backend.tick(Plugin, .Idle) catch {};
             }
         }
+    };
+
+    return &.{
+        .on_fd = posix_fd_support.on_fd,
     };
 }

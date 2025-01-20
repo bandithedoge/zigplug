@@ -3,7 +3,7 @@ const zigplug = @import("zigplug");
 
 var gpa = std.heap.GeneralPurposeAllocator(.{}){};
 
-pub const plugin: zigplug.Plugin = .{
+pub const desc: zigplug.Description = .{
     .id = "com.bandithedoge.zigplug",
     .name = "zigplug meter",
     .vendor = "bandithedoge",
@@ -24,12 +24,6 @@ pub const plugin: zigplug.Plugin = .{
         .out = &.{},
     },
 
-    .callbacks = .{
-        .init = init,
-        .deinit = deinit,
-        .process = process,
-    },
-
     .gui = .{
         .backend = zigplug.gui.backends.cairo(.{
             .render = render,
@@ -41,20 +35,18 @@ pub const plugin: zigplug.Plugin = .{
     .allocator = gpa.allocator(),
 };
 
-fn init(plug: *const zigplug.Plugin) void {
-    _ = plug; // autofix
-
-    gpa.init();
+pub fn init() @This() {
+    return .{};
 }
 
-fn deinit(plug: *const zigplug.Plugin) void {
-    _ = plug; // autofix
+pub fn deinit(self: *@This()) void {
+    _ = self; // autofix
 
     gpa.deinit();
 }
 
-fn process(comptime plug: zigplug.Plugin, block: zigplug.ProcessBlock) zigplug.ProcessStatus {
-    _ = plug; // autofix
+pub fn process(self: *@This(), block: zigplug.ProcessBlock) zigplug.ProcessStatus {
+    _ = self; // autofix
     for (block.out, 0..) |buffer, buffer_i| {
         for (buffer.data, 0..) |channel, channel_i| {
             std.mem.copyForwards(f32, channel[0..buffer.samples], block.in[buffer_i].data[channel_i][0..buffer.samples]);
@@ -65,6 +57,7 @@ fn process(comptime plug: zigplug.Plugin, block: zigplug.ProcessBlock) zigplug.P
 
 const c = zigplug.gui.pugl.c;
 
+// TODO: properly handle user gui state
 var gui_state: struct {
     lock: std.Thread.RwLock = .{},
     level: [2]f32 = .{ 0.0, 0.0 },
@@ -81,10 +74,11 @@ fn render(cr: *c.cairo_t, render_data: zigplug.gui.RenderData) !void {
     const scalar = std.math.pow(
         f32,
         0.5,
-        1.0 / (half_life * @as(f32, @floatFromInt(plugin.data.sample_rate))),
+        1.0 / (half_life * @as(f32, @floatFromInt(render_data.plugin_data.sample_rate))),
     );
 
     if (render_data.process_block) |block| {
+        std.debug.print("chuj", .{});
         for (block.in) |buffer| {
             for (buffer.data, 0..) |channel, channel_i| {
                 for (0..buffer.samples) |i| {

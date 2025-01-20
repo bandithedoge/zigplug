@@ -14,14 +14,24 @@ pub const RenderData = struct {
     w: u32,
     h: u32,
     process_block: ?zigplug.ProcessBlock = null,
+    parameters: []zigplug.parameters.Parameter,
+    plugin_data: *const zigplug.PluginData,
+
+    pub fn getParam(self: *const RenderData, id: anytype) zigplug.parameters.ParameterType {
+        return self.parameters[@intFromEnum(id)].get();
+    }
+
+    pub fn setParam(self: *RenderData, id: anytype, value: zigplug.parameters.ParameterType) void {
+        self.parameters[@intFromEnum(id)].set(value);
+    }
 };
 
 pub const Data = struct {
     created: bool,
     visible: bool,
-    sample_lock: std.Thread.RwLock = .{},
+    sample_lock: std.Thread.Mutex = .{},
     sample_data: ?zigplug.ProcessBlock = null,
-    requestResize: ?*const fn (u32, u32) bool = null,
+    requestResize: ?*const fn (*anyopaque, u32, u32) bool = null,
 };
 
 pub const Options = struct {
@@ -45,14 +55,14 @@ pub const Size = struct {
 };
 
 pub const Backend = struct {
-    create: fn (comptime zigplug.Plugin) anyerror!void,
-    destroy: fn (comptime zigplug.Plugin) anyerror!void,
-    setParent: fn (comptime zigplug.Plugin, WindowHandle) anyerror!void,
-    show: fn (comptime zigplug.Plugin, bool) anyerror!void,
-    tick: fn (comptime zigplug.Plugin, Event) anyerror!void,
-    suggestTitle: ?fn (comptime zigplug.Plugin, [:0]const u8) anyerror!void,
-    setSize: ?fn (comptime zigplug.Plugin, u32, u32) anyerror!void,
-    getSize: ?fn (comptime zigplug.Plugin) anyerror!Size,
+    create: fn (comptime type, *zigplug.PluginData) anyerror!void,
+    destroy: fn (comptime type) anyerror!void,
+    setParent: fn (comptime type, WindowHandle) anyerror!void,
+    show: fn (comptime type, bool) anyerror!void,
+    tick: fn (comptime type, Event) anyerror!void,
+    suggestTitle: ?fn (comptime type, [:0]const u8) anyerror!void,
+    setSize: ?fn (comptime type, u32, u32) anyerror!void,
+    getSize: ?fn (comptime type) anyerror!Size,
 };
 
 pub const backends = struct {

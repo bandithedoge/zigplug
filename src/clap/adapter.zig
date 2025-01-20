@@ -2,12 +2,16 @@ const std = @import("std");
 
 const zigplug = @import("zigplug");
 const options = @import("zigplug_options");
-const clap = @import("c");
+const clap = @import("clap_c");
 
 const events = @import("events.zig");
 
-const Data = struct {
-    host: [*c]const clap.clap_host_t,
+pub const Data = struct {
+    plugin: *anyopaque,
+    host: [*c]const clap.clap_host_t = undefined,
+
+    plugin_data: zigplug.PluginData = undefined,
+
     host_timer_support: [*c]const clap.clap_host_timer_support_t = null,
     host_gui: [*c]const clap.clap_host_gui_t = null,
     timer_id: clap.clap_id = undefined,
@@ -17,23 +21,22 @@ const Data = struct {
     }
 };
 
-pub var data: Data = undefined;
-
-fn ClapPlugin(comptime plugin: zigplug.Plugin) type {
-    const has_gui = options.with_gui and plugin.gui != null;
-    const has_params = plugin.Parameters != null;
+fn ClapPlugin(comptime Plugin: type) type {
+    const has_gui = options.with_gui and Plugin.desc.gui != null;
+    const has_params = Plugin.desc.Parameters != null;
 
     return extern struct {
         fn init(clap_plugin: [*c]const clap.clap_plugin) callconv(.C) bool {
-            _ = clap_plugin; // autofix
             zigplug.log.debug("init()\n", .{});
+
+            const data = Data.cast(clap_plugin);
 
             if (has_gui) {
                 data.host_timer_support = @ptrCast(@alignCast(data.host.*.get_extension.?(data.host, &clap.CLAP_EXT_TIMER_SUPPORT)));
                 data.host_gui = @ptrCast(@alignCast(data.host.*.get_extension.?(data.host, &clap.CLAP_EXT_GUI)));
             }
 
-            const interval = if (comptime plugin.gui) |gui| (if (gui.targetFps) |target| 1000.0 / target else 200.0) else 200.0;
+            const interval = if (comptime Plugin.desc.gui) |gui| (if (gui.targetFps) |target| 1000.0 / target else 200.0) else 200.0;
 
             if (data.host_timer_support) |host_timer_support| {
                 if (host_timer_support.*.register_timer) |register_timer| {
@@ -53,8 +56,9 @@ fn ClapPlugin(comptime plugin: zigplug.Plugin) type {
         fn activate(clap_plugin: [*c]const clap.clap_plugin, sample_rate: f64, min_size: u32, max_size: u32) callconv(.C) bool {
             zigplug.log.debug("activate({}, {}, {})\n", .{ sample_rate, min_size, max_size });
 
-            _ = clap_plugin;
-            plugin.data.sample_rate = @intFromFloat(sample_rate);
+            const data = Data.cast(clap_plugin);
+
+            data.plugin_data.sample_rate = @intFromFloat(sample_rate);
 
             return true;
         }
@@ -85,10 +89,10 @@ fn ClapPlugin(comptime plugin: zigplug.Plugin) type {
         }
 
         fn process(clap_plugin: [*c]const clap.clap_plugin, clap_process: [*c]const clap.clap_process_t) callconv(.C) clap.clap_process_status {
-            _ = clap_plugin;
+            const data = Data.cast(clap_plugin);
 
             if (has_params)
-                events.syncMainToAudio(plugin, clap_process.*.out_events);
+                events.syncMainToAudio(Plugin, data, clap_process.*.out_events);
 
             const samples = clap_process.*.frames_count;
 
@@ -107,7 +111,7 @@ fn ClapPlugin(comptime plugin: zigplug.Plugin) type {
                             break;
                         }
 
-                        events.processEvent(plugin, event);
+                        events.processEvent(Plugin, clap_plugin, event);
                         event_index += 1;
 
                         if (event_index == event_count) {
@@ -119,8 +123,8 @@ fn ClapPlugin(comptime plugin: zigplug.Plugin) type {
             }
 
             // render audio
-            const inputs = plugin.ports.in.len;
-            const outputs = plugin.ports.out.len;
+            const inputs = Plugin.desc.ports.in.len;
+            const outputs = Plugin.desc.ports.out.len;
 
             std.debug.assert(clap_process.*.audio_inputs_count == inputs);
             std.debug.assert(clap_process.*.audio_outputs_count == outputs);
@@ -128,7 +132,7 @@ fn ClapPlugin(comptime plugin: zigplug.Plugin) type {
             var input_buffers: [inputs]zigplug.ProcessBuffer = undefined;
             inline for (0..inputs) |i| {
                 const input = clap_process.*.audio_inputs[i];
-                const channels = plugin.ports.in[i].channels;
+                const channels = Plugin.desc.ports.in[i].channels;
 
                 std.debug.assert(input.channel_count == channels);
 
@@ -143,7 +147,7 @@ fn ClapPlugin(comptime plugin: zigplug.Plugin) type {
             var output_buffers: [outputs]zigplug.ProcessBuffer = undefined;
             inline for (0..outputs) |i| {
                 const output = clap_process.*.audio_outputs[i];
-                const channels = plugin.ports.in[i].channels;
+                const channels = Plugin.desc.ports.in[i].channels;
 
                 std.debug.assert(output.channel_count == channels);
 
@@ -162,11 +166,11 @@ fn ClapPlugin(comptime plugin: zigplug.Plugin) type {
 
             // FIXME: race condition
             // sometimes this function gets called before all parameters are initialized causing an index out of bounds error
-            const status = plugin.callbacks.process(plugin, block);
+            const status = Plugin.process(@ptrCast(@alignCast(data.plugin)), block);
 
-            if (comptime plugin.gui) |gui| {
+            if (comptime Plugin.desc.gui) |gui| {
                 if (comptime gui.sample_access) {
-                    if (plugin.data.gui) |*gui_data| {
+                    if (data.plugin_data.gui) |*gui_data| {
                         if (gui_data.sample_lock.tryLock()) {
                             defer gui_data.sample_lock.unlock();
                             gui_data.sample_data = block;
@@ -183,10 +187,9 @@ fn ClapPlugin(comptime plugin: zigplug.Plugin) type {
 
         fn get_extension(clap_plugin: [*c]const clap.clap_plugin, id: [*c]const u8) callconv(.C) ?*const anyopaque {
             zigplug.log.debug("get_extension({s})\n", .{id});
+            _ = clap_plugin; // autofix
 
-            _ = clap_plugin;
-
-            return @import("extensions.zig").getExtension(plugin, std.mem.span(id));
+            return @import("extensions.zig").getExtension(Plugin, std.mem.span(id));
         }
 
         fn on_main_thread(clap_plugin: [*c]const clap.clap_plugin) callconv(.C) void {
@@ -197,7 +200,7 @@ fn ClapPlugin(comptime plugin: zigplug.Plugin) type {
     };
 }
 
-fn PluginFactory(comptime plugin: zigplug.Plugin) type {
+fn PluginFactory(comptime Plugin: type) type {
     return extern struct {
         fn get_plugin_count(factory: [*c]const clap.clap_plugin_factory) callconv(.C) u32 {
             zigplug.log.debug("get_plugin_count()\n", .{});
@@ -268,14 +271,14 @@ fn PluginFactory(comptime plugin: zigplug.Plugin) type {
                     .revision = clap.CLAP_VERSION_REVISION,
                 },
 
-                .id = plugin.id,
-                .name = plugin.name,
-                .vendor = plugin.vendor,
-                .url = plugin.url,
-                .manual_url = plugin.manual_url orelse plugin.url,
-                .support_url = plugin.support_url orelse plugin.url,
-                .version = plugin.version,
-                .description = plugin.description,
+                .id = Plugin.desc.id,
+                .name = Plugin.desc.name,
+                .vendor = Plugin.desc.vendor,
+                .url = Plugin.desc.url,
+                .manual_url = Plugin.desc.manual_url orelse Plugin.desc.url,
+                .support_url = Plugin.desc.support_url orelse Plugin.desc.url,
+                .version = Plugin.desc.version,
+                .description = Plugin.desc.description,
                 // FIXME: segfault
                 // .features = features.constSlice().ptr,
                 .features = &[_][*c]const u8{null},
@@ -286,23 +289,38 @@ fn PluginFactory(comptime plugin: zigplug.Plugin) type {
             zigplug.log.debug("create_plugin({s})\n", .{plugin_id});
             _ = factory;
 
-            const clap_plugin = ClapPlugin(plugin);
-            data.host = host;
+            const clap_plugin = ClapPlugin(Plugin);
 
-            return &.{
-                .plugin_data = null,
+            var plugin: Plugin = Plugin.init();
 
-                .init = clap_plugin.init,
-                .destroy = clap_plugin.destroy,
-                .activate = clap_plugin.activate,
-                .deactivate = clap_plugin.deactivate,
-                .start_processing = clap_plugin.start_processing,
-                .stop_processing = clap_plugin.stop_processing,
-                .reset = clap_plugin.reset,
-                .process = clap_plugin.process,
-                .get_extension = clap_plugin.get_extension,
-                .on_main_thread = clap_plugin.on_main_thread,
+            std.debug.assert(host != null);
+
+            const plugin_class = Plugin.desc.allocator.create(clap.clap_plugin_t) catch {
+                zigplug.log.err("Plugin allocation failed", .{});
+                return null;
             };
+
+            plugin_class.*.plugin_data = Plugin.desc.allocator.create(Data) catch {
+                zigplug.log.err("Plugin allocation failed (OOM)", .{});
+                return null;
+            };
+
+            const plugin_data = Data.cast(plugin_class);
+            plugin_data.plugin = &plugin;
+            plugin_data.host = host;
+
+            plugin_class.*.init = clap_plugin.init;
+            plugin_class.*.destroy = clap_plugin.destroy;
+            plugin_class.*.activate = clap_plugin.activate;
+            plugin_class.*.deactivate = clap_plugin.deactivate;
+            plugin_class.*.start_processing = clap_plugin.start_processing;
+            plugin_class.*.stop_processing = clap_plugin.stop_processing;
+            plugin_class.*.reset = clap_plugin.reset;
+            plugin_class.*.process = clap_plugin.process;
+            plugin_class.*.get_extension = clap_plugin.get_extension;
+            plugin_class.*.on_main_thread = clap_plugin.on_main_thread;
+
+            return plugin_class;
         }
     };
 }
@@ -333,7 +351,7 @@ fn PluginEntry(factory: clap.clap_plugin_factory_t) type {
     };
 }
 
-pub fn clap_entry(comptime plugin: zigplug.Plugin) clap.clap_plugin_entry_t {
+pub fn clap_entry(comptime plugin: type) clap.clap_plugin_entry_t {
     const factory = PluginFactory(plugin);
 
     const factory_c: clap.clap_plugin_factory_t = .{

@@ -1,13 +1,31 @@
 const std = @import("std");
 const zigplug = @import("zigplug");
 
-var state: struct {
-    phase: f32,
-} = undefined;
+phase: f32 = 0.0,
+
+const Parameters = enum {
+    red,
+    green,
+    blue,
+
+    pub fn setup(self: @This()) zigplug.parameters.Parameter {
+        return switch (self) {
+            .red => zigplug.parameters.makeParam(.{ .float = 0.0 }, .{
+                .name = "Red",
+            }),
+            .green => zigplug.parameters.makeParam(.{ .float = 0.0 }, .{
+                .name = "Green",
+            }),
+            .blue => zigplug.parameters.makeParam(.{ .float = 0.0 }, .{
+                .name = "Blue",
+            }),
+        };
+    }
+};
 
 var gpa = std.heap.GeneralPurposeAllocator(.{}){};
 
-pub const plugin: zigplug.Plugin = .{
+pub const desc: zigplug.Description = .{
     .id = "com.bandithedoge.zigplug",
     .name = "zigplug",
     .vendor = "bandithedoge",
@@ -33,31 +51,7 @@ pub const plugin: zigplug.Plugin = .{
         },
     },
 
-    .callbacks = .{
-        .init = init,
-        .deinit = deinit,
-        .process = process,
-    },
-
-    .Parameters = enum {
-        red,
-        green,
-        blue,
-
-        pub fn setup(self: @This()) zigplug.parameters.Parameter {
-            return switch (self) {
-                .red => zigplug.parameters.makeParam(.{ .float = 0.0 }, .{
-                    .name = "Red",
-                }),
-                .green => zigplug.parameters.makeParam(.{ .float = 0.0 }, .{
-                    .name = "Green",
-                }),
-                .blue => zigplug.parameters.makeParam(.{ .float = 0.0 }, .{
-                    .name = "Blue",
-                }),
-            };
-        }
-    },
+    .Parameters = Parameters,
 
     .gui = .{
         .backend = zigplug.gui.backends.openGl(.gles2_0, .{
@@ -68,22 +62,17 @@ pub const plugin: zigplug.Plugin = .{
     .allocator = gpa.allocator(),
 };
 
-fn init(plug: *const zigplug.Plugin) void {
-    _ = plug; // autofix
-
-    gpa.init();
-
-    state.phase = 0.0;
+pub fn init() @This() {
+    return .{};
 }
 
-fn deinit(plug: *const zigplug.Plugin) void {
-    _ = plug; // autofix
-
+pub fn deinit(self: *@This()) void {
+    _ = self; // autofix
     gpa.deinit();
 }
 
-fn process(comptime plug: zigplug.Plugin, block: zigplug.ProcessBlock) zigplug.ProcessStatus {
-    _ = plug; // autofix
+pub fn process(self: *@This(), block: zigplug.ProcessBlock) zigplug.ProcessStatus {
+    _ = self; // autofix
     for (block.out, 0..) |buffer, buffer_i| {
         for (buffer.data, 0..) |channel, channel_i| {
             std.mem.copyForwards(f32, channel[0..buffer.samples], block.in[buffer_i].data[channel_i][0..buffer.samples]);
@@ -94,8 +83,13 @@ fn process(comptime plug: zigplug.Plugin, block: zigplug.ProcessBlock) zigplug.P
 
 const gl = zigplug.gui.pugl.c;
 
-fn render(_: zigplug.gui.RenderData) !void {
+fn render(data: zigplug.gui.RenderData) !void {
     // TODO: write a better opengl example (spinning cube?)
-    gl.glClearColor(plugin.getParam(.red).float, plugin.getParam(.green).float, plugin.getParam(.blue).float, 0);
+    gl.glClearColor(
+        data.getParam(Parameters.red).float,
+        data.getParam(Parameters.green).float,
+        data.getParam(Parameters.blue).float,
+        0,
+    );
     gl.glClear(gl.GL_COLOR_BUFFER_BIT | gl.GL_DEPTH_BUFFER_BIT);
 }

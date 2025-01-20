@@ -3,7 +3,7 @@ const zigplug = @import("zigplug");
 
 var gpa = std.heap.GeneralPurposeAllocator(.{}){};
 
-pub const plugin: zigplug.Plugin = .{
+pub const desc: zigplug.Description = .{
     .id = "com.bandithedoge.zigplug_minimal",
     .name = "zigplug minimal",
     .vendor = "bandithedoge",
@@ -18,26 +18,19 @@ pub const plugin: zigplug.Plugin = .{
         .in = &.{},
         .out = &.{},
     },
-
-    .callbacks = .{
-        .init = init,
-        .deinit = deinit,
-        .process = process,
-    },
 };
 
-fn init(plug: *const zigplug.Plugin) void {
-    _ = plug;
-    gpa.init();
+pub fn init() @This() {
+    return .{};
 }
 
-fn deinit(plug: *const zigplug.Plugin) void {
-    _ = plug;
+pub fn deinit(self: *@This()) void {
+    _ = self; // autofix
     gpa.deinit();
 }
 
-fn process(comptime plug: zigplug.Plugin, block: zigplug.ProcessBlock) zigplug.ProcessStatus {
-    _ = plug;
+pub fn process(this: *@This(), block: zigplug.ProcessBlock) zigplug.ProcessStatus {
+    _ = this; // autofix
     _ = block;
     return .ok;
 }

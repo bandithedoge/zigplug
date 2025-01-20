@@ -60,17 +60,9 @@ pub fn build(b: *std.Build) !void {
                             .use_glib = false,
                             .symbol_lookup = false,
                         })) |cairo| {
+                            // TODO: this should be a separate TranslateC step
                             zigplug.linkLibrary(cairo.artifact("cairo"));
-
-                            // HACK: cairo headers are located in a "cairo/" subdirectory when imported in zig,
-                            // yet pugl expects them to be in the top-level include dir.
-                            // this should be turned into a patch or better yet a fork of pugl/cairo with the build system replaced with zig.
-                            const include = b.addWriteFiles();
-                            const headers = &[_][]const u8{ "cairo-xlib.h", "cairo.h" };
-                            for (headers) |h| {
-                                _ = include.add(h, try std.fmt.allocPrint(b.allocator, "#include <cairo/{s}>", .{h}));
-                            }
-                            pugl.addIncludePath(include.getDirectory());
+                            pugl.linkLibrary(cairo.artifact("cairo"));
                         }
                     },
                     else => unreachable,
@@ -102,13 +94,14 @@ pub fn build(b: *std.Build) !void {
                 .{ .name = "zigplug_options", .module = options_module },
             },
         });
+        clap_adapter.addImport("clap_adapter", clap_adapter);
 
         const clap_c = b.addTranslateC(.{
             .root_source_file = b.lazyDependency("clap_api", .{}).?.path("include/clap/clap.h"),
             .target = target,
             .optimize = optimize,
         });
-        clap_adapter.addAnonymousImport("c", .{
+        clap_adapter.addAnonymousImport("clap_c", .{
             .root_source_file = clap_c.getOutput(),
         });
     }
@@ -133,7 +126,7 @@ pub const PluginBuilder = struct {
         const name = try std.mem.concat(b.allocator, u8, &[_][]const u8{ self.object.name, ".clap" });
 
         const entry = b.addWriteFile("clap_entry.zig",
-            \\ export const clap_entry = @import("clap_adapter").clap_entry(@import("plugin_root").plugin);
+            \\ export const clap_entry = @import("clap_adapter").clap_entry(@import("plugin_root"));
         );
         entry.step.dependOn(&self.object.step);
 

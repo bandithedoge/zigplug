@@ -16,10 +16,13 @@
           packages = with pkgs; [
             zig
             zls
-            cairo
+
             libGL
+            pixman
             pkg-config
             xorg.libX11
+            xorg.libXext
+            xorg.libXrender
           ];
         };
       };

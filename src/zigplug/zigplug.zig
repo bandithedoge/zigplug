@@ -27,7 +27,7 @@ pub const ProcessStatus = enum {
 pub const PluginData = struct {
     /// hz
     sample_rate: u32,
-    param_lock: std.Thread.RwLock,
+    param_lock: std.Thread.Mutex,
     parameters: std.ArrayList(parameters.Parameter),
 
     gui: ?gui.Data = null,
@@ -37,20 +37,12 @@ pub const PluginData = struct {
     }
 };
 
-pub const Callbacks = struct {
-    init: fn (*const Plugin) void,
-    deinit: fn (*const Plugin) void,
-    process: fn (comptime Plugin, ProcessBlock) ProcessStatus, // TODO: process events
-};
-
 pub const Ports = struct {
     in: []const Port,
     out: []const Port,
 };
 
-pub const Plugin = struct {
-    allocator: std.mem.Allocator,
-
+pub const Description = struct {
     id: [:0]const u8,
     name: [:0]const u8,
     vendor: [:0]const u8,
@@ -62,27 +54,13 @@ pub const Plugin = struct {
     manual_url: ?[:0]const u8 = null,
     support_url: ?[:0]const u8 = null,
 
-    ports: Ports,
+    allocator: std.mem.Allocator,
 
-    callbacks: Callbacks,
+    ports: Ports,
 
     Parameters: ?type = null,
 
     gui: ?gui.Options = null,
-
-    data: *PluginData = &plugin_data,
-
-    pub var plugin_data: PluginData = undefined;
-
-    pub fn getParam(self: *const Plugin, id: self.Parameters.?) parameters.ParameterType {
-        if (self.Parameters == null) @compileError("");
-
-        // plugin_data.param_lock.lock();
-        // defer plugin_data.param_lock.unlock();
-
-        const result = self.data.parameters.items[@intFromEnum(id)].get();
-        return result;
-    }
 };
 
 pub const log = std.log.scoped(.zigplug);

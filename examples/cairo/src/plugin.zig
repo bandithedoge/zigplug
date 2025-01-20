@@ -1,13 +1,32 @@
 const std = @import("std");
 const zigplug = @import("zigplug");
 
-var state: struct {
-    phase: f32,
-} = undefined;
+phase: f32 = 0.0,
 
 var gpa = std.heap.GeneralPurposeAllocator(.{}){};
 
-pub const plugin: zigplug.Plugin = .{
+const Parameters =
+    enum {
+    red,
+    green,
+    blue,
+
+    pub fn setup(self: @This()) zigplug.parameters.Parameter {
+        return switch (self) {
+            .red => zigplug.parameters.makeParam(.{ .float = 0.0 }, .{
+                .name = "Red",
+            }),
+            .green => zigplug.parameters.makeParam(.{ .float = 0.0 }, .{
+                .name = "Green",
+            }),
+            .blue => zigplug.parameters.makeParam(.{ .float = 0.0 }, .{
+                .name = "Blue",
+            }),
+        };
+    }
+};
+
+pub const desc: zigplug.Description = .{
     .id = "com.bandithedoge.zigplug",
     .name = "zigplug cairo",
     .vendor = "bandithedoge",
@@ -33,31 +52,7 @@ pub const plugin: zigplug.Plugin = .{
         },
     },
 
-    .callbacks = .{
-        .init = init,
-        .deinit = deinit,
-        .process = process,
-    },
-
-    .Parameters = enum {
-        red,
-        green,
-        blue,
-
-        pub fn setup(self: @This()) zigplug.parameters.Parameter {
-            return switch (self) {
-                .red => zigplug.parameters.makeParam(.{ .float = 0.0 }, .{
-                    .name = "Red",
-                }),
-                .green => zigplug.parameters.makeParam(.{ .float = 0.0 }, .{
-                    .name = "Green",
-                }),
-                .blue => zigplug.parameters.makeParam(.{ .float = 0.0 }, .{
-                    .name = "Blue",
-                }),
-            };
-        }
-    },
+    .Parameters = Parameters,
 
     .gui = .{
         .backend = zigplug.gui.backends.cairo(.{
@@ -69,22 +64,20 @@ pub const plugin: zigplug.Plugin = .{
     .allocator = gpa.allocator(),
 };
 
-fn init(plug: *const zigplug.Plugin) void {
-    _ = plug; // autofix
+pub fn init() @This() {
+    // gpa.init();
 
-    gpa.init();
-
-    state.phase = 0.0;
+    return .{};
 }
 
-fn deinit(plug: *const zigplug.Plugin) void {
-    _ = plug; // autofix
+pub fn deinit(self: *@This()) void {
+    _ = self; // autofix
 
     gpa.deinit();
 }
 
-fn process(comptime plug: zigplug.Plugin, block: zigplug.ProcessBlock) zigplug.ProcessStatus {
-    _ = plug; // autofix
+pub fn process(self: *@This(), block: zigplug.ProcessBlock) zigplug.ProcessStatus {
+    _ = self; // autofix
     for (block.out, 0..) |buffer, buffer_i| {
         for (buffer.data, 0..) |channel, channel_i| {
             std.mem.copyForwards(f32, channel[0..buffer.samples], block.in[buffer_i].data[channel_i][0..buffer.samples]);
@@ -106,9 +99,9 @@ fn render(cr: *zigplug.gui.pugl.c.cairo_t, render_data: zigplug.gui.RenderData) 
     c.cairo_clip_preserve(cr);
     c.cairo_set_source_rgb(
         cr,
-        plugin.getParam(.red).float,
-        plugin.getParam(.green).float,
-        plugin.getParam(.blue).float,
+        render_data.getParam(Parameters.red).float,
+        render_data.getParam(Parameters.green).float,
+        render_data.getParam(Parameters.blue).float,
     );
     c.cairo_fill(cr);
 
