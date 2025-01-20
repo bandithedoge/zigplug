@@ -56,8 +56,9 @@ pub fn build(b: *std.Build) !void {
                         if (b.lazyDependency("cairo", .{
                             .target = target,
                             .optimize = optimize,
-                            .use_zlib = false,
                             .use_glib = false,
+                            .use_xcb = false,
+                            .use_zlib = false,
                             .symbol_lookup = false,
                         })) |cairo| {
                             // TODO: this should be a separate TranslateC step
