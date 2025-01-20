@@ -66,6 +66,6 @@ pub const Backend = struct {
 };
 
 pub const backends = struct {
-    pub const openGl = pugl.openGl;
-    pub const cairo = pugl.cairo;
+    pub const openGl = pugl.openGlBackend;
+    pub const cairo = pugl.cairoBackend;
 };

@@ -18,6 +18,9 @@ pub fn build(b: *std.Build) !void {
         .gui_backend = .cairo,
     });
 
+    plugin.root_module.addImport("zigplug", zigplug_dep.module("zigplug"));
+    plugin.root_module.addImport("cairo_c", zigplug_dep.module("cairo_c"));
+
     const builder = zigplug.PluginBuilder.new(plugin, zigplug_dep);
 
     _ = try builder.addClapTarget();

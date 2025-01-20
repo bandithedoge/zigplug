@@ -55,7 +55,7 @@ pub fn process(self: *@This(), block: zigplug.ProcessBlock) zigplug.ProcessStatu
     return .ok;
 }
 
-const c = zigplug.gui.pugl.c;
+const cairo = @import("cairo_c");
 
 // TODO: properly handle user gui state
 var gui_state: struct {
@@ -67,7 +67,7 @@ var gui_state: struct {
 const half_life = 0.1;
 const very_small_float = 1.0e-30;
 
-fn render(cr: *c.cairo_t, render_data: zigplug.gui.RenderData) !void {
+fn render(cr: *cairo.cairo_t, render_data: zigplug.gui.RenderData) !void {
     gui_state.lock.lock();
     defer gui_state.lock.unlock();
 
@@ -96,18 +96,18 @@ fn render(cr: *c.cairo_t, render_data: zigplug.gui.RenderData) !void {
         }
     }
 
-    c.cairo_rectangle(
+    cairo.cairo_rectangle(
         cr,
         @floatFromInt(render_data.x),
         @floatFromInt(render_data.y),
         @floatFromInt(render_data.w),
         @floatFromInt(render_data.h),
     );
-    c.cairo_clip_preserve(cr);
-    c.cairo_set_source_rgb(cr, 0, 0, 0);
-    c.cairo_fill(cr);
+    cairo.cairo_clip_preserve(cr);
+    cairo.cairo_set_source_rgb(cr, 0, 0, 0);
+    cairo.cairo_fill(cr);
 
-    c.cairo_rectangle(
+    cairo.cairo_rectangle(
         cr,
         @floatFromInt(render_data.x),
         @floatFromInt(render_data.h),
@@ -115,12 +115,12 @@ fn render(cr: *c.cairo_t, render_data: zigplug.gui.RenderData) !void {
         -(gui_state.level[0] * @as(f32, @floatFromInt(render_data.h)) - @as(f32, @floatFromInt(render_data.h)) / 6.0),
     );
     if (gui_state.level[0] >= 1)
-        c.cairo_set_source_rgb(cr, 1, 0, 0)
+        cairo.cairo_set_source_rgb(cr, 1, 0, 0)
     else
-        c.cairo_set_source_rgb(cr, 0, 1, 0);
-    c.cairo_fill(cr);
+        cairo.cairo_set_source_rgb(cr, 0, 1, 0);
+    cairo.cairo_fill(cr);
 
-    c.cairo_rectangle(
+    cairo.cairo_rectangle(
         cr,
         @floatFromInt(render_data.w / 2),
         @floatFromInt(render_data.h),
@@ -128,8 +128,8 @@ fn render(cr: *c.cairo_t, render_data: zigplug.gui.RenderData) !void {
         -(gui_state.level[1] * @as(f32, @floatFromInt(render_data.h)) - @as(f32, @floatFromInt(render_data.h)) / 6.0),
     );
     if (gui_state.level[0] >= 1)
-        c.cairo_set_source_rgb(cr, 1, 0, 0)
+        cairo.cairo_set_source_rgb(cr, 1, 0, 0)
     else
-        c.cairo_set_source_rgb(cr, 0, 1, 0);
-    c.cairo_fill(cr);
+        cairo.cairo_set_source_rgb(cr, 0, 1, 0);
+    cairo.cairo_fill(cr);
 }

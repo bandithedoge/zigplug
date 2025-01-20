@@ -6,14 +6,15 @@ const gui = @import("gui.zig");
 
 const log = std.log.scoped(.Pugl);
 
-pub const c = @cImport({
+const cairo = @import("cairo_c");
+
+const c = @cImport({
     @cDefine("PUGL_STATIC", {});
     @cInclude("pugl/pugl.h");
     switch (options.gui_backend) {
         .gl => @cInclude("pugl/gl.h"),
         .cairo => {
             @cInclude("pugl/cairo.h");
-            @cInclude("cairo.h");
         },
         else => unreachable,
     }
@@ -71,7 +72,7 @@ pub const Version = enum {
 pub const Callbacks = struct {
     render: switch (options.gui_backend) {
         .gl => fn (gui.RenderData) anyerror!void,
-        .cairo => fn (*c.cairo_t, gui.RenderData) anyerror!void,
+        .cairo => fn (*cairo.cairo_t, gui.RenderData) anyerror!void,
         else => unreachable,
     },
     create: ?fn (type) anyerror!void = null,
@@ -266,14 +267,14 @@ fn puglBackend(api: enum { gl, cairo }, version: ?Version, callbacks: Callbacks)
     };
 }
 
-pub fn openGl(version: Version, callbacks: Callbacks) gui.Backend {
+pub fn openGlBackend(version: Version, callbacks: Callbacks) gui.Backend {
     if (options.gui_backend != .gl)
         @compileError("OpenGL backend was not selected in build.zig");
 
     return puglBackend(.gl, version, callbacks);
 }
 
-pub fn cairo(callbacks: Callbacks) gui.Backend {
+pub fn cairoBackend(callbacks: Callbacks) gui.Backend {
     if (options.gui_backend != .cairo)
         @compileError("Cairo backend was not selected in build.zig");
 

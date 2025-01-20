@@ -81,7 +81,9 @@ pub fn process(self: *@This(), block: zigplug.ProcessBlock) zigplug.ProcessStatu
     return .ok;
 }
 
-const gl = zigplug.gui.pugl.c;
+const gl = @cImport({
+    @cInclude("GL/gl.h");
+});
 
 fn render(data: zigplug.gui.RenderData) !void {
     // TODO: write a better opengl example (spinning cube?)

@@ -1,6 +1,7 @@
 {
   "build_options": [
     { "name": "with_clap", "value": "true" },
-    { "name": "with_gui", "value": "true" }
+    { "name": "with_gui", "value": "true" },
+    { "name": "gui_backend", "value": "cairo" }
   ]
 }

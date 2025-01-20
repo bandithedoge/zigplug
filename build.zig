@@ -61,9 +61,17 @@ pub fn build(b: *std.Build) !void {
                             .use_zlib = false,
                             .symbol_lookup = false,
                         })) |cairo| {
+                            const cairo_lib = cairo.artifact("cairo");
                             // TODO: this should be a separate TranslateC step
-                            zigplug.linkLibrary(cairo.artifact("cairo"));
-                            pugl.linkLibrary(cairo.artifact("cairo"));
+                            zigplug.linkLibrary(cairo_lib);
+                            pugl.linkLibrary(cairo_lib);
+
+                            const cairo_c = b.addTranslateC(.{
+                                .root_source_file = cairo_lib.getEmittedIncludeTree().path(cairo.builder, "cairo.h"),
+                                .target = target,
+                                .optimize = optimize,
+                            });
+                            zigplug.addImport("cairo_c", cairo_c.addModule("cairo_c"));
                         }
                     },
                     else => unreachable,
@@ -113,8 +121,6 @@ pub const PluginBuilder = struct {
     zigplug: *std.Build.Dependency,
 
     pub fn new(object: *std.Build.Step.Compile, zigplug: *std.Build.Dependency) PluginBuilder {
-        object.root_module.addImport("zigplug", zigplug.module("zigplug"));
-
         return .{
             .object = object,
             .zigplug = zigplug,

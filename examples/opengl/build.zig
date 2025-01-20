@@ -18,6 +18,8 @@ pub fn build(b: *std.Build) !void {
         .gui_backend = .gl,
     });
 
+    plugin.root_module.addImport("zigplug", zigplug_dep.module("zigplug"));
+
     const builder = zigplug.PluginBuilder.new(plugin, zigplug_dep);
 
     _ = try builder.addClapTarget();
