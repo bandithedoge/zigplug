@@ -28,71 +28,69 @@ pub fn build(b: *std.Build) !void {
     });
 
     if (options.with_gui) {
-        const pugl_dep = b.lazyDependency("pugl", .{});
-        const pugl = b.addStaticLibrary(.{
-            .name = "pugl",
-            .target = target,
-            .optimize = optimize,
-            .link_libc = true,
-        });
-        pugl.addIncludePath(pugl_dep.?.path("include"));
+        if (b.lazyDependency("pugl", .{})) |pugl_dep| {
+            const pugl = b.addStaticLibrary(.{
+                .name = "pugl",
+                .target = target,
+                .optimize = optimize,
+                .link_libc = true,
+            });
 
-        var pugl_sources = std.ArrayList([]const u8).init(b.allocator);
+            var pugl_sources = std.ArrayList([]const u8).init(b.allocator);
+            try pugl_sources.appendSlice(&.{ "src/common.c", "src/internal.c" });
+            switch (target.result.os.tag) {
+                .linux => {
+                    try pugl_sources.appendSlice(&.{ "src/x11.c", switch (options.gui_backend) {
+                        .gl => "src/x11_gl.c",
+                        .cairo => "src/x11_cairo.c",
+                        else => unreachable,
+                    } });
+                    pugl.linkSystemLibrary("X11");
 
-        try pugl_sources.appendSlice(&.{ "src/common.c", "src/internal.c" });
-
-        switch (target.result.os.tag) {
-            .linux => {
-                try pugl_sources.appendSlice(&.{ "src/x11.c", switch (options.gui_backend) {
-                    .gl => "src/x11_gl.c",
-                    .cairo => "src/x11_cairo.c",
-                    else => unreachable,
-                } });
-                pugl.linkSystemLibrary("X11");
-
-                switch (options.gui_backend) {
-                    .gl => zigplug.linkSystemLibrary("gl", .{}),
-                    .cairo => {
-                        if (b.lazyDependency("cairo", .{
-                            .target = target,
-                            .optimize = optimize,
-                            .use_glib = false,
-                            .use_xcb = false,
-                            .use_zlib = false,
-                            .symbol_lookup = false,
-                        })) |cairo| {
-                            const cairo_lib = cairo.artifact("cairo");
-                            // TODO: this should be a separate TranslateC step
-                            zigplug.linkLibrary(cairo_lib);
-                            pugl.linkLibrary(cairo_lib);
-
-                            const cairo_c = b.addTranslateC(.{
-                                .root_source_file = cairo_lib.getEmittedIncludeTree().path(cairo.builder, "cairo.h"),
+                    switch (options.gui_backend) {
+                        .gl => zigplug.linkSystemLibrary("gl", .{}),
+                        .cairo => {
+                            if (b.lazyDependency("cairo", .{
                                 .target = target,
                                 .optimize = optimize,
-                            });
-                            zigplug.addImport("cairo_c", cairo_c.addModule("cairo_c"));
-                        }
-                    },
-                    else => unreachable,
-                }
-            },
-            else => {
-                _ = @panic("GUI not supported on target OS");
-            },
+                                .use_glib = false,
+                                .use_xcb = false,
+                                .use_zlib = false,
+                                .symbol_lookup = false,
+                            })) |cairo| {
+                                const cairo_lib = cairo.artifact("cairo");
+                                zigplug.linkLibrary(cairo_lib);
+                                pugl.linkLibrary(cairo_lib);
+
+                                const cairo_c = b.addTranslateC(.{
+                                    .root_source_file = cairo_lib.getEmittedIncludeTree().path(cairo.builder, "cairo.h"),
+                                    .target = target,
+                                    .optimize = optimize,
+                                });
+                                zigplug.addImport("cairo_c", cairo_c.addModule("cairo_c"));
+                            }
+                        },
+                        else => unreachable,
+                    }
+                },
+                else => {
+                    _ = @panic("GUI not supported on target OS");
+                },
+            }
+
+            pugl.addIncludePath(pugl_dep.path("include"));
+            zigplug.addIncludePath(pugl_dep.path("include"));
+
+            pugl.addCSourceFiles(.{
+                .root = pugl_dep.path(""),
+                .files = try pugl_sources.toOwnedSlice(),
+                .flags = &.{
+                    "-DPUGL_STATIC",
+                    "-DPUGL_DISABLE_DEPRECATED",
+                },
+            });
+            zigplug.linkLibrary(pugl);
         }
-
-        pugl.addCSourceFiles(.{
-            .root = pugl_dep.?.path(""),
-            .files = try pugl_sources.toOwnedSlice(),
-            .flags = &.{
-                "-DPUGL_STATIC",
-                "-DPUGL_DISABLE_DEPRECATED",
-            },
-        });
-
-        zigplug.linkLibrary(pugl);
-        zigplug.addIncludePath(pugl_dep.?.path("include"));
     }
 
     if (options.with_clap) {
@@ -105,14 +103,16 @@ pub fn build(b: *std.Build) !void {
         });
         clap_adapter.addImport("clap_adapter", clap_adapter);
 
-        const clap_c = b.addTranslateC(.{
-            .root_source_file = b.lazyDependency("clap_api", .{}).?.path("include/clap/clap.h"),
-            .target = target,
-            .optimize = optimize,
-        });
-        clap_adapter.addAnonymousImport("clap_c", .{
-            .root_source_file = clap_c.getOutput(),
-        });
+        if (b.lazyDependency("clap_api", .{})) |clap_dep| {
+            const clap_c = b.addTranslateC(.{
+                .root_source_file = clap_dep.path("include/clap/clap.h"),
+                .target = target,
+                .optimize = optimize,
+            });
+            clap_adapter.addAnonymousImport("clap_c", .{
+                .root_source_file = clap_c.getOutput(),
+            });
+        }
     }
 }
 
