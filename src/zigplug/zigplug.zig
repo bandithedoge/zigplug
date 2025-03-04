@@ -17,6 +17,7 @@ pub const ProcessBuffer = struct {
 pub const ProcessBlock = struct {
     in: []ProcessBuffer,
     out: []ProcessBuffer,
+    sample_rate: u32,
 };
 
 pub const ProcessStatus = enum {
@@ -54,13 +55,45 @@ pub const Description = struct {
     manual_url: ?[:0]const u8 = null,
     support_url: ?[:0]const u8 = null,
 
-    allocator: std.mem.Allocator,
-
     ports: Ports,
 
     Parameters: ?type = null,
 
     gui: ?gui.Options = null,
+};
+
+pub const Plugin = struct {
+    const Callbacks = struct {
+        init: *const fn () *anyopaque,
+        deinit: *const fn (*anyopaque) void,
+        process: *const fn (*anyopaque, ProcessBlock) ProcessStatus,
+    };
+
+    const Options = struct {
+        allocator: std.mem.Allocator,
+    };
+
+    ptr: *anyopaque,
+    allocator: std.mem.Allocator,
+    callbacks: Callbacks,
+
+    pub fn new(comptime T: type, options: Options, callbacks: Callbacks) Plugin {
+        _ = T; // autofix
+        const ptr = callbacks.init();
+        return .{
+            .ptr = ptr,
+            .allocator = options.allocator,
+            .callbacks = callbacks,
+        };
+    }
+
+    pub fn deinit(self: *Plugin) void {
+        self.callbacks.deinit(self.ptr);
+    }
+
+    pub fn process(self: *Plugin, block: ProcessBlock) ProcessStatus {
+        return self.callbacks.process(self.ptr, block);
+    }
 };
 
 pub const log = std.log.scoped(.zigplug);

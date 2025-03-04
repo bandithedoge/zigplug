@@ -12,24 +12,34 @@ pub const desc: zigplug.Description = .{
     .description = "Bare minimum required to build a zigplug plugin",
     .features = &.{},
 
-    .allocator = gpa.allocator(),
-
     .ports = .{
         .in = &.{},
         .out = &.{},
     },
 };
 
-pub fn init() @This() {
-    return .{};
+pub fn plugin() zigplug.Plugin {
+    return zigplug.Plugin.new(@This(), .{
+        .allocator = gpa.allocator(),
+    }, .{
+        .init = @ptrCast(&init),
+        .deinit = @ptrCast(&deinit),
+        .process = @ptrCast(&process),
+    });
 }
 
-pub fn deinit(self: *@This()) void {
-    _ = self; // autofix
-    gpa.deinit();
+fn init() !*@This() {
+    const self = try gpa.allocator().create(@This());
+    self.* = .{};
+    return self;
 }
 
-pub fn process(this: *@This(), block: zigplug.ProcessBlock) zigplug.ProcessStatus {
+fn deinit(self: *@This()) void {
+    gpa.allocator().destroy(self);
+    _ = gpa.deinit();
+}
+
+fn process(this: *@This(), block: zigplug.ProcessBlock) zigplug.ProcessStatus {
     _ = this; // autofix
     _ = block;
     return .ok;

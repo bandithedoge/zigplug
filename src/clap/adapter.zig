@@ -7,7 +7,7 @@ const clap = @import("clap_c");
 const events = @import("events.zig");
 
 pub const Data = struct {
-    plugin: *anyopaque,
+    plugin: zigplug.Plugin,
     host: [*c]const clap.clap_host_t = undefined,
 
     plugin_data: zigplug.PluginData = undefined,
@@ -34,13 +34,13 @@ fn ClapPlugin(comptime Plugin: type) type {
             if (has_gui) {
                 data.host_timer_support = @ptrCast(@alignCast(data.host.*.get_extension.?(data.host, &clap.CLAP_EXT_TIMER_SUPPORT)));
                 data.host_gui = @ptrCast(@alignCast(data.host.*.get_extension.?(data.host, &clap.CLAP_EXT_GUI)));
-            }
 
-            const interval = if (comptime Plugin.desc.gui) |gui| (if (gui.targetFps) |target| 1000.0 / target else 200.0) else 200.0;
+                const interval = if (comptime Plugin.desc.gui) |gui| (if (gui.targetFps) |target| 1000.0 / target else 200.0) else 200.0;
 
-            if (data.host_timer_support) |host_timer_support| {
-                if (host_timer_support.*.register_timer) |register_timer| {
-                    return register_timer(data.host, @round(interval), &data.timer_id);
+                if (data.host_timer_support) |host_timer_support| {
+                    if (host_timer_support.*.register_timer) |register_timer| {
+                        return register_timer(data.host, @round(interval), &data.timer_id);
+                    }
                 }
             }
 
@@ -50,7 +50,11 @@ fn ClapPlugin(comptime Plugin: type) type {
         fn destroy(clap_plugin: [*c]const clap.clap_plugin) callconv(.C) void {
             zigplug.log.debug("destroy()\n", .{});
 
-            _ = clap_plugin; // autofix
+            const data = Data.cast(clap_plugin);
+            data.plugin.deinit();
+            // data.plugin.destroy(Plugin);
+            // data.plugin.allocator.destroy(@as(*Data, @ptrCast(@alignCast(clap_plugin.?.*.plugin_data))));
+            // data.plugin.allocator.destroy(@as(*const clap.clap_plugin_t, clap_plugin));
         }
 
         fn activate(clap_plugin: [*c]const clap.clap_plugin, sample_rate: f64, min_size: u32, max_size: u32) callconv(.C) bool {
@@ -162,11 +166,12 @@ fn ClapPlugin(comptime Plugin: type) type {
             const block: zigplug.ProcessBlock = .{
                 .in = &input_buffers,
                 .out = &output_buffers,
+                .sample_rate = data.plugin_data.sample_rate,
             };
 
             // FIXME: race condition
             // sometimes this function gets called before all parameters are initialized causing an index out of bounds error
-            const status = Plugin.process(@ptrCast(@alignCast(data.plugin)), block);
+            const status = data.plugin.process(block);
 
             if (comptime Plugin.desc.gui) |gui| {
                 if (comptime gui.sample_access) {
@@ -291,22 +296,24 @@ fn PluginFactory(comptime Plugin: type) type {
 
             const clap_plugin = ClapPlugin(Plugin);
 
-            var plugin: Plugin = Plugin.init();
+            // var plugin: Plugin = Plugin.init();
+            const plugin: zigplug.Plugin = Plugin.plugin();
+            // const desc = plugin.callbacks.descriptor();
 
             std.debug.assert(host != null);
 
-            const plugin_class = Plugin.desc.allocator.create(clap.clap_plugin_t) catch {
+            const plugin_class = plugin.allocator.create(clap.clap_plugin_t) catch {
                 zigplug.log.err("Plugin allocation failed", .{});
                 return null;
             };
 
-            plugin_class.*.plugin_data = Plugin.desc.allocator.create(Data) catch {
+            plugin_class.*.plugin_data = plugin.allocator.create(Data) catch {
                 zigplug.log.err("Plugin allocation failed (OOM)", .{});
                 return null;
             };
 
             const plugin_data = Data.cast(plugin_class);
-            plugin_data.plugin = &plugin;
+            plugin_data.plugin = plugin;
             plugin_data.host = host;
 
             plugin_class.*.init = clap_plugin.init;

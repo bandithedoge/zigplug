@@ -1,7 +1,7 @@
 const std = @import("std");
 const zigplug = @import("zigplug");
 
-phase: f32 = 0.0,
+phase: f32,
 
 var gpa = std.heap.GeneralPurposeAllocator(.{}){};
 
@@ -60,27 +60,37 @@ pub const desc: zigplug.Description = .{
         }),
         .resizable = true,
     },
-
-    .allocator = gpa.allocator(),
 };
 
-pub fn init() @This() {
+pub fn plugin() zigplug.Plugin {
+    return zigplug.Plugin.new(@This(), .{
+        .allocator = gpa.allocator(),
+    }, .{
+        .init = @ptrCast(&init),
+        .deinit = @ptrCast(&deinit),
+        .process = @ptrCast(&process),
+    });
+}
+
+fn init() !*@This() {
     // gpa.init();
-
-    return .{};
+    const self = try gpa.allocator().create(@This());
+    self.* = .{ .phase = 0.0 };
+    return self;
 }
 
-pub fn deinit(self: *@This()) void {
-    _ = self; // autofix
-
-    gpa.deinit();
+fn deinit(self: *@This()) void {
+    gpa.allocator().destroy(self);
+    _ = gpa.deinit();
 }
 
-pub fn process(self: *@This(), block: zigplug.ProcessBlock) zigplug.ProcessStatus {
-    _ = self; // autofix
-    for (block.out, 0..) |buffer, buffer_i| {
-        for (buffer.data, 0..) |channel, channel_i| {
-            std.mem.copyForwards(f32, channel[0..buffer.samples], block.in[buffer_i].data[channel_i][0..buffer.samples]);
+fn process(self: *@This(), block: zigplug.ProcessBlock) zigplug.ProcessStatus {
+    for (block.out) |buffer| {
+        for (buffer.data) |channel| {
+            for (0..buffer.samples) |i| {
+                channel[i] = @sin(2 * std.math.pi * 440 * self.phase / @as(f32, @floatFromInt(block.sample_rate)));
+                self.phase += 1;
+            }
         }
     }
     return .ok;

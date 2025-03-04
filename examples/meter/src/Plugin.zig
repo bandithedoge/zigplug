@@ -31,18 +31,27 @@ pub const desc: zigplug.Description = .{
         .sample_access = true,
         .targetFps = 60,
     },
-
-    .allocator = gpa.allocator(),
 };
 
-pub fn init() @This() {
-    return .{};
+pub fn plugin() zigplug.Plugin {
+    return zigplug.Plugin.new(@This(), .{
+        .allocator = gpa.allocator(),
+    }, .{
+        .init = @ptrCast(&init),
+        .deinit = @ptrCast(&deinit),
+        .process = @ptrCast(&process),
+    });
 }
 
-pub fn deinit(self: *@This()) void {
-    _ = self; // autofix
+fn init() !*@This() {
+    const self = try gpa.allocator().create(@This());
+    self.* = .{};
+    return self;
+}
 
-    gpa.deinit();
+fn deinit(self: *@This()) void {
+    gpa.allocator().destroy(self);
+    _ = gpa.deinit();
 }
 
 pub fn process(self: *@This(), block: zigplug.ProcessBlock) zigplug.ProcessStatus {

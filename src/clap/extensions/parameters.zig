@@ -16,7 +16,7 @@ pub fn Parameters(comptime Plugin: type) *const c.clap_plugin_params_t {
             data.plugin_data.param_lock.lock();
             defer data.plugin_data.param_lock.unlock();
 
-            data.plugin_data.parameters = std.ArrayList(zigplug.parameters.Parameter).init(Plugin.desc.allocator);
+            data.plugin_data.parameters = std.ArrayList(zigplug.parameters.Parameter).init(data.plugin.allocator);
 
             return @typeInfo(Plugin.desc.Parameters.?).Enum.fields.len;
         }
@@ -72,7 +72,7 @@ pub fn Parameters(comptime Plugin: type) *const c.clap_plugin_params_t {
             var param = data.plugin_data.parameters.items[id];
             param.value.fromFloat(value);
 
-            const result = param.value.print(Plugin.desc.allocator) catch {
+            const result = param.value.print(data.plugin.allocator) catch {
                 zigplug.log.err("formatting parameter value failed: {}", .{value});
                 return false;
             };
@@ -81,7 +81,7 @@ pub fn Parameters(comptime Plugin: type) *const c.clap_plugin_params_t {
                 u8,
                 display[0..size],
                 if (param.unit) |unit|
-                    std.fmt.allocPrintZ(Plugin.desc.allocator, "{s} {s}", .{ result, unit }) catch {
+                    std.fmt.allocPrintZ(data.plugin.allocator, "{s} {s}", .{ result, unit }) catch {
                         return false;
                     }
                 else

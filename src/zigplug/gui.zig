@@ -27,8 +27,8 @@ pub const RenderData = struct {
 };
 
 pub const Data = struct {
-    created: bool,
-    visible: bool,
+    created: bool = false,
+    visible: bool = false,
     sample_lock: std.Thread.Mutex = .{},
     sample_data: ?zigplug.ProcessBlock = null,
     requestResize: ?*const fn (*anyopaque, u32, u32) bool = null,

@@ -184,7 +184,7 @@ fn puglBackend(api: enum { gl, cairo }, version: ?Version, callbacks: Callbacks)
             // HACK: https://github.com/lv2/pugl/issues/98
             _ = c.puglSetPosition(gui_data.view, 0, 0);
 
-            // plugin.data.gui_created = true;
+            data.gui.?.created = true;
         }
 
         pub fn destroy(comptime plugin: type) !void {
@@ -195,7 +195,8 @@ fn puglBackend(api: enum { gl, cairo }, version: ?Version, callbacks: Callbacks)
             c.puglFreeView(gui_data.view);
             c.puglFreeWorld(gui_data.world);
 
-            // plugin.data.gui_created = false;
+            const data: *zigplug.PluginData = @ptrCast(@alignCast(c.puglGetHandle(gui_data.view)));
+            data.gui.?.created = false;
         }
 
         pub fn setParent(comptime plugin: type, handle: gui.WindowHandle) !void {
@@ -217,12 +218,18 @@ fn puglBackend(api: enum { gl, cairo }, version: ?Version, callbacks: Callbacks)
             }
         }
 
-        pub fn tick(comptime plugin: type, event: gui.Event) !void {
+        pub fn tick(comptime Plugin: type, event: gui.Event) !void {
             log.debug("tick({})", .{event});
+            std.debug.assert(gui_data.world != null);
+            std.debug.assert(gui_data.view != null);
+
+            const data: *zigplug.PluginData = @ptrCast(@alignCast(c.puglGetHandle(gui_data.view)));
+            std.debug.assert(data.gui != null);
+            std.debug.assert(data.gui.?.created);
 
             switch (event) {
                 .ParamChanged, .StateChanged => try handleError(c.puglPostRedisplay(gui_data.view)),
-                .Idle => if (plugin.desc.gui.?.targetFps != null) try handleError(c.puglPostRedisplay(gui_data.view)),
+                .Idle => if (Plugin.desc.gui.?.targetFps != null) try handleError(c.puglPostRedisplay(gui_data.view)),
                 else => {},
             }
             try handleError(c.puglUpdate(gui_data.world, 0));

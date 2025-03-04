@@ -58,20 +58,30 @@ pub const desc: zigplug.Description = .{
             .render = render,
         }),
     },
-
-    .allocator = gpa.allocator(),
 };
 
-pub fn init() @This() {
-    return .{};
+pub fn plugin() zigplug.Plugin {
+    return zigplug.Plugin.new(@This(), .{
+        .allocator = gpa.allocator(),
+    }, .{
+        .init = @ptrCast(&init),
+        .deinit = @ptrCast(&deinit),
+        .process = @ptrCast(&process),
+    });
 }
 
-pub fn deinit(self: *@This()) void {
-    _ = self; // autofix
-    gpa.deinit();
+fn init() !*@This() {
+    const self = try gpa.allocator().create(@This());
+    self.* = .{};
+    return self;
 }
 
-pub fn process(self: *@This(), block: zigplug.ProcessBlock) zigplug.ProcessStatus {
+fn deinit(self: *@This()) void {
+    gpa.allocator().destroy(self);
+    _ = gpa.deinit();
+}
+
+fn process(self: *@This(), block: zigplug.ProcessBlock) zigplug.ProcessStatus {
     _ = self; // autofix
     for (block.out, 0..) |buffer, buffer_i| {
         for (buffer.data, 0..) |channel, channel_i| {
