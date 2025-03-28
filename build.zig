@@ -43,7 +43,7 @@ pub fn build(b: *std.Build) !void {
             .cairo = options.gui_backend == .cairo,
             .stub = options.gui_backend == .external,
         })) |pugl| {
-            b.installArtifact(pugl.artifact("pugl"));
+            zigplug_lib.installLibraryHeaders(pugl.artifact("pugl"));
             zigplug.addImport("pugl", pugl.module("pugl"));
 
             switch (options.gui_backend) {

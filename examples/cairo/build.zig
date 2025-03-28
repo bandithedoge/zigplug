@@ -23,7 +23,7 @@ pub fn build(b: *std.Build) !void {
         }),
     });
 
-    plugin.linkLibrary(zigplug_dep.artifact("pugl"));
+    plugin.linkLibrary(zigplug_dep.artifact("zigplug"));
 
     const builder = zigplug.PluginBuilder.new(plugin, zigplug_dep);
 
