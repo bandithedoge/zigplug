@@ -26,69 +26,31 @@ pub fn build(b: *std.Build) !void {
         },
     });
 
+    const zigplug_lib = b.addLibrary(.{
+        .name = "zigplug",
+        .root_module = zigplug,
+    });
+
+    b.installArtifact(zigplug_lib);
+
     if (options.with_gui) {
-        if (b.lazyDependency("pugl", .{})) |pugl_dep| {
-            const pugl = b.addStaticLibrary(.{
-                .name = "pugl",
-                .target = target,
-                .optimize = optimize,
-                .link_libc = true,
-            });
+        if (b.lazyDependency("pugl", .{
+            .target = target,
+            .optimize = optimize,
+            .xrandr = false,
+            .xcursor = false,
+            .opengl = options.gui_backend == .gl,
+            .cairo = options.gui_backend == .cairo,
+            .stub = options.gui_backend == .external,
+        })) |pugl| {
+            b.installArtifact(pugl.artifact("pugl"));
+            zigplug.addImport("pugl", pugl.module("pugl"));
 
-            var pugl_sources = std.ArrayList([]const u8).init(b.allocator);
-            try pugl_sources.appendSlice(&.{ "src/common.c", "src/internal.c" });
-            switch (target.result.os.tag) {
-                .linux => {
-                    try pugl_sources.appendSlice(&.{ "src/x11.c", switch (options.gui_backend) {
-                        .gl => "src/x11_gl.c",
-                        .cairo => "src/x11_cairo.c",
-                        else => unreachable,
-                    } });
-                    pugl.linkSystemLibrary("X11");
-
-                    switch (options.gui_backend) {
-                        .gl => pugl.linkSystemLibrary("gl"),
-                        .cairo => {
-                            if (b.lazyDependency("cairo", .{
-                                .target = target,
-                                .optimize = optimize,
-                                .use_glib = false,
-                                .use_xcb = false,
-                                .use_zlib = false,
-                                .symbol_lookup = false,
-                            })) |cairo| {
-                                const cairo_lib = cairo.artifact("cairo");
-                                zigplug.linkLibrary(cairo_lib);
-                                pugl.linkLibrary(cairo_lib);
-
-                                const cairo_c = b.addTranslateC(.{
-                                    .root_source_file = cairo_lib.getEmittedIncludeTree().path(cairo.builder, "cairo.h"),
-                                    .target = target,
-                                    .optimize = optimize,
-                                });
-                                zigplug.addImport("cairo_c", cairo_c.addModule("cairo_c"));
-                            }
-                        },
-                        else => unreachable,
-                    }
-                },
-                else => {
-                    _ = @panic("GUI not supported on target OS");
-                },
+            switch (options.gui_backend) {
+                .gl => zigplug.addImport("backend_opengl", pugl.module("backend_opengl")),
+                .cairo => zigplug.addImport("backend_cairo", pugl.module("backend_cairo")),
+                else => unreachable,
             }
-
-            pugl.addIncludePath(pugl_dep.path("include"));
-            zigplug.addIncludePath(pugl_dep.path("include"));
-
-            pugl.addCSourceFiles(.{
-                .root = pugl_dep.path(""),
-                .files = try pugl_sources.toOwnedSlice(),
-                .flags = &.{
-                    "-DPUGL_STATIC",
-                    "-DPUGL_DISABLE_DEPRECATED",
-                },
-            });
-            zigplug.linkLibrary(pugl);
         }
     }
 

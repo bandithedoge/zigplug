@@ -10,13 +10,8 @@
             .lazy = true,
         },
         .pugl = .{
-            .url = "https://github.com/lv2/pugl/archive/edd13c1b952b16633861855fcdbdd164e87b3c0a.tar.gz",
-            .hash = "N-V-__8AAH_4DwAU69IoxVdxG4G15zhaaPGgdLUpHxM1XwDc",
-            .lazy = true,
-        },
-        .cairo = .{
-            .url = "https://github.com/bandithedoge/cairo.zig/archive/bfc51c8232486ed21e83e020711aa039c7b6bc04.tar.gz",
-            .hash = "cairo_zig-1.18.4-GbxI8QpbAQD1mm-pi1QJuwYmxvhdVf0K1XhMEFlgsVhb",
+            .url = "https://github.com/bandithedoge/pugl.zig/archive/769d44e8934cc2f43c1f571674ce52262ea336a5.tar.gz",
+            .hash = "pugl-0.1.0-CUvtTmtKAQCNUMx7feJODPSow_ffYyPCTecSavxnLEt7",
             .lazy = true,
         },
     },

@@ -96,9 +96,10 @@ fn process(self: *@This(), block: zigplug.ProcessBlock) zigplug.ProcessStatus {
     return .ok;
 }
 
-const cairo = @import("cairo_c");
+const cairo = @cImport(@cInclude("cairo.h"));
 
-fn render(cr: *cairo.cairo_t, render_data: zigplug.gui.RenderData) !void {
+fn render(cr_ptr: *anyopaque, render_data: zigplug.gui.RenderData) !void {
+    const cr: *cairo.cairo_t = @ptrCast(cr_ptr);
     cairo.cairo_rectangle(
         cr,
         @floatFromInt(render_data.x),

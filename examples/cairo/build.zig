@@ -19,10 +19,11 @@ pub fn build(b: *std.Build) !void {
             .root_source_file = b.path("src/Plugin.zig"),
             .imports = &.{
                 .{ .name = "zigplug", .module = zigplug_dep.module("zigplug") },
-                .{ .name = "cairo_c", .module = zigplug_dep.module("cairo_c") },
             },
         }),
     });
+
+    plugin.linkLibrary(zigplug_dep.artifact("pugl"));
 
     const builder = zigplug.PluginBuilder.new(plugin, zigplug_dep);
 

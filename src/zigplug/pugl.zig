@@ -1,65 +1,18 @@
-const builtin = @import("builtin");
 const std = @import("std");
+const builtin = @import("builtin");
+
 const options = @import("zigplug_options");
-const zigplug = @import("zigplug.zig");
+const pugl = @import("pugl");
+
 const gui = @import("gui.zig");
+const zigplug = @import("zigplug.zig");
 
 const log = std.log.scoped(.Pugl);
 
-const cairo = @import("cairo_c");
-
-const c = @cImport({
-    @cDefine("PUGL_STATIC", {});
-    @cInclude("pugl/pugl.h");
-    switch (options.gui_backend) {
-        .gl => @cInclude("pugl/gl.h"),
-        .cairo => {
-            @cInclude("pugl/cairo.h");
-        },
-        else => unreachable,
-    }
-});
-
-const PuglError = error{
-    Unknown,
-    BadBackend,
-    BadConfiguration,
-    BadParameter,
-    BackendFailed,
-    RegistrationFailed,
-    RealizeFailed,
-    SetFormatFailed,
-    CreateContextFailed,
-    Unsupported,
-    NoMemory,
-};
-
-fn handleError(status: c.PuglStatus) PuglError!void {
-    if (status != 0) {
-        zigplug.log.err("pugl error: {s}", .{c.puglStrerror(status)});
-    }
-
-    switch (status) {
-        c.PUGL_UNKNOWN_ERROR => return PuglError.Unknown,
-        c.PUGL_BAD_BACKEND => return PuglError.BadBackend,
-        c.PUGL_BAD_CONFIGURATION => return PuglError.BadConfiguration,
-        c.PUGL_BAD_PARAMETER => return PuglError.BadParameter,
-        c.PUGL_BACKEND_FAILED => return PuglError.BackendFailed,
-        c.PUGL_REGISTRATION_FAILED => return PuglError.RegistrationFailed,
-        c.PUGL_REALIZE_FAILED => return PuglError.RealizeFailed,
-        c.PUGL_SET_FORMAT_FAILED => return PuglError.SetFormatFailed,
-        c.PUGL_CREATE_CONTEXT_FAILED => return PuglError.CreateContextFailed,
-        c.PUGL_UNSUPPORTED => return PuglError.Unsupported,
-        c.PUGL_NO_MEMORY => return PuglError.NoMemory,
-
-        else => {},
-    }
-}
-
 // TODO: don't use global variables
 var gui_data: struct {
-    world: ?*c.PuglWorld = null,
-    view: ?*c.PuglView = null,
+    world: pugl.World = undefined,
+    view: pugl.View = undefined,
 } = undefined;
 
 pub const Version = enum {
@@ -72,7 +25,7 @@ pub const Version = enum {
 pub const Callbacks = struct {
     render: switch (options.gui_backend) {
         .gl => fn (gui.RenderData) anyerror!void,
-        .cairo => fn (*cairo.cairo_t, gui.RenderData) anyerror!void,
+        .cairo => fn (*anyopaque, gui.RenderData) anyerror!void,
         else => unreachable,
     },
     create: ?fn (type) anyerror!void = null,
@@ -81,15 +34,15 @@ pub const Callbacks = struct {
 
 fn puglBackend(api: enum { gl, cairo }, version: ?Version, callbacks: Callbacks) gui.Backend {
     const B = struct {
-        fn onEvent(view: ?*c.PuglView, event: [*c]const c.PuglEvent) callconv(.c) c.PuglStatus {
-            switch (event.*.type) {
-                c.PUGL_EXPOSE => {
-                    const plugin_data = zigplug.PluginData.cast(c.puglGetHandle(view));
+        fn onEvent(view: *const pugl.View, event: pugl.event.Event) pugl.Error!void {
+            const plugin_data = zigplug.PluginData.cast(view.getHandle().?);
+            switch (event) {
+                .expose => |e| {
                     var render_data: gui.RenderData = .{
-                        .x = @intCast(event.*.expose.x),
-                        .y = @intCast(event.*.expose.y),
-                        .w = event.*.expose.width,
-                        .h = event.*.expose.height,
+                        .x = e.x,
+                        .y = e.y,
+                        .w = e.width,
+                        .h = e.height,
                         .parameters = plugin_data.parameters.items,
                         .plugin_data = plugin_data,
                     };
@@ -103,77 +56,77 @@ fn puglBackend(api: enum { gl, cairo }, version: ?Version, callbacks: Callbacks)
                     }
 
                     switch (options.gui_backend) {
-                        .gl => callbacks.render(render_data) catch return c.PUGL_REALIZE_FAILED,
-                        .cairo => callbacks.render(@ptrCast(c.puglGetContext(gui_data.view)), render_data) catch return c.PUGL_REALIZE_FAILED,
+                        .gl => callbacks.render(render_data) catch return pugl.Error.RealizeFailed,
+                        .cairo => callbacks.render(view.getContext().?, render_data) catch return pugl.Error.RealizeFailed,
                         else => unreachable,
                     }
                 },
                 else => {},
             }
-
-            return c.PUGL_SUCCESS;
         }
 
         pub fn create(comptime Plugin: type, data: *zigplug.PluginData) !void {
-            gui_data.world = c.puglNewWorld(c.PUGL_MODULE, 0);
-            try handleError(c.puglSetWorldString(gui_data.world, c.PUGL_CLASS_NAME, Plugin.desc.name));
+            gui_data.world = try .new(.module, .{});
+            try gui_data.world.setHint(.class_name, Plugin.desc.name);
 
-            gui_data.view = c.puglNewView(gui_data.world);
+            gui_data.view = try .new(&gui_data.world);
 
-            c.puglSetHandle(gui_data.view, data);
+            gui_data.view.setHandle(data);
 
-            try handleError(c.puglSetSizeHint(
-                gui_data.view,
-                c.PUGL_DEFAULT_SIZE,
-                Plugin.desc.gui.?.default_width,
-                Plugin.desc.gui.?.default_height,
-            ));
-            try handleError(c.puglSetSizeHint(
-                gui_data.view,
-                c.PUGL_MIN_SIZE,
-                Plugin.desc.gui.?.min_width orelse Plugin.desc.gui.?.default_width,
-                Plugin.desc.gui.?.min_height orelse Plugin.desc.gui.?.default_height,
-            ));
+            try gui_data.view.setSizeHint(.default, .{
+                .width = Plugin.desc.gui.?.default_width,
+                .height = Plugin.desc.gui.?.default_height,
+            });
+            try gui_data.view.setSizeHint(.minimum, .{
+                .width = Plugin.desc.gui.?.min_width orelse Plugin.desc.gui.?.default_width,
+                .height = Plugin.desc.gui.?.min_height orelse Plugin.desc.gui.?.default_height,
+            });
             if (Plugin.desc.gui.?.keep_aspect) {
                 const gcd = std.math.gcd(Plugin.desc.gui.?.default_width, Plugin.desc.gui.?.default_height);
                 const w: u16 = Plugin.desc.gui.?.default_width / gcd;
                 const h: u16 = Plugin.desc.gui.?.default_height / gcd;
-                try handleError(c.puglSetSizeHint(gui_data.view, c.PUGL_FIXED_ASPECT, w, h));
+                try gui_data.view.setSizeHint(.fixed_aspect, .{ .width = w, .height = h });
             }
-            try handleError(c.puglSetViewHint(gui_data.view, c.PUGL_RESIZABLE, if (Plugin.desc.gui.?.resizable) c.PUGL_TRUE else c.PUGL_FALSE));
-            try handleError(c.puglSetViewHint(gui_data.view, c.PUGL_VIEW_TYPE, c.PUGL_VIEW_TYPE_NORMAL));
 
-            try handleError(c.puglSetEventFunc(gui_data.view, onEvent));
+            try gui_data.view.setBoolHint(.resizable, Plugin.desc.gui.?.resizable);
+            try gui_data.view.setType(.normal);
+
+            try gui_data.view.setEventFunc(onEvent);
 
             switch (api) {
                 .gl => {
-                    try handleError(c.puglSetBackend(gui_data.view, c.puglGlBackend()));
+                    const OpenGlBackend = @import("backend_opengl");
+                    const backend = OpenGlBackend.new(&gui_data.view);
+
+                    try gui_data.view.setBackend(backend.backend);
                     switch (version.?) {
                         .gl2_2 => {
-                            try handleError(c.puglSetViewHint(gui_data.view, c.PUGL_CONTEXT_API, c.PUGL_OPENGL_API));
-                            try handleError(c.puglSetViewHint(gui_data.view, c.PUGL_CONTEXT_VERSION_MAJOR, 2));
-                            try handleError(c.puglSetViewHint(gui_data.view, c.PUGL_CONTEXT_VERSION_MINOR, 2));
+                            try gui_data.view.setContextApi(.opengl);
+                            try gui_data.view.setIntHint(.context_version_major, 2);
+                            try gui_data.view.setIntHint(.context_version_minor, 2);
                         },
                         .gl3_0 => {
-                            try handleError(c.puglSetViewHint(gui_data.view, c.PUGL_CONTEXT_API, c.PUGL_OPENGL_API));
-                            try handleError(c.puglSetViewHint(gui_data.view, c.PUGL_CONTEXT_VERSION_MAJOR, 3));
-                            try handleError(c.puglSetViewHint(gui_data.view, c.PUGL_CONTEXT_VERSION_MINOR, 0));
+                            try gui_data.view.setContextApi(.opengl);
+                            try gui_data.view.setIntHint(.context_version_major, 3);
+                            try gui_data.view.setIntHint(.context_version_minor, 0);
                         },
                         .gl3_3 => {
-                            try handleError(c.puglSetViewHint(gui_data.view, c.PUGL_CONTEXT_API, c.PUGL_OPENGL_API));
-                            try handleError(c.puglSetViewHint(gui_data.view, c.PUGL_CONTEXT_VERSION_MAJOR, 3));
-                            try handleError(c.puglSetViewHint(gui_data.view, c.PUGL_CONTEXT_VERSION_MINOR, 3));
+                            try gui_data.view.setContextApi(.opengl);
+                            try gui_data.view.setIntHint(.context_version_major, 3);
+                            try gui_data.view.setIntHint(.context_version_minor, 3);
                         },
                         .gles2_0 => {
-                            try handleError(c.puglSetViewHint(gui_data.view, c.PUGL_CONTEXT_API, c.PUGL_OPENGL_ES_API));
-                            try handleError(c.puglSetViewHint(gui_data.view, c.PUGL_CONTEXT_VERSION_MAJOR, 2));
-                            try handleError(c.puglSetViewHint(gui_data.view, c.PUGL_CONTEXT_VERSION_MINOR, 0));
+                            try gui_data.view.setContextApi(.opengl_es);
+                            try gui_data.view.setIntHint(.context_version_major, 2);
+                            try gui_data.view.setIntHint(.context_version_minor, 0);
                         },
                     }
-                    try handleError(c.puglSetViewHint(gui_data.view, c.PUGL_CONTEXT_PROFILE, c.PUGL_OPENGL_CORE_PROFILE));
+                    try gui_data.view.setContextProfile(.core);
                 },
                 .cairo => {
-                    try handleError(c.puglSetBackend(gui_data.view, c.puglCairoBackend()));
+                    const CairoBackend = @import("backend_cairo");
+                    const backend = CairoBackend.new();
+                    try gui_data.view.setBackend(backend.backend);
                 },
             }
 
@@ -182,7 +135,7 @@ fn puglBackend(api: enum { gl, cairo }, version: ?Version, callbacks: Callbacks)
             }
 
             // HACK: https://github.com/lv2/pugl/issues/98
-            _ = c.puglSetPosition(gui_data.view, 0, 0);
+            try gui_data.view.setPositionHint(.current, .{ .x = 0, .y = 0 });
 
             data.gui.?.created = true;
         }
@@ -192,68 +145,63 @@ fn puglBackend(api: enum { gl, cairo }, version: ?Version, callbacks: Callbacks)
                 try func(plugin);
             }
 
-            c.puglFreeView(gui_data.view);
-            c.puglFreeWorld(gui_data.world);
+            gui_data.view.free();
+            gui_data.world.free();
 
-            const data: *zigplug.PluginData = @ptrCast(@alignCast(c.puglGetHandle(gui_data.view)));
+            const data: *zigplug.PluginData = @ptrCast(@alignCast(gui_data.view.getHandle().?));
             data.gui.?.created = false;
         }
 
         pub fn setParent(comptime plugin: type, handle: gui.WindowHandle) !void {
             _ = plugin; // autofix
 
-            try handleError(c.puglSetParentWindow(gui_data.view, switch (builtin.target.os.tag) {
+            try gui_data.view.setParent(switch (builtin.target.os.tag) {
                 .linux => handle.x11,
                 else => unreachable,
-            }));
+            });
         }
 
         pub fn show(comptime plugin: type, visible: bool) !void {
             _ = plugin; // autofix
 
-            if (visible) {
-                try handleError(c.puglShow(gui_data.view, c.PUGL_SHOW_RAISE));
-            } else {
-                try handleError(c.puglHide(gui_data.view));
-            }
+            if (visible)
+                try gui_data.view.show(.raise)
+            else
+                try gui_data.view.hide();
         }
 
         pub fn tick(comptime Plugin: type, event: gui.Event) !void {
             log.debug("tick({})", .{event});
-            std.debug.assert(gui_data.world != null);
-            std.debug.assert(gui_data.view != null);
 
-            const data: *zigplug.PluginData = @ptrCast(@alignCast(c.puglGetHandle(gui_data.view)));
+            const data: *zigplug.PluginData = @ptrCast(@alignCast(gui_data.view.getHandle().?));
             std.debug.assert(data.gui != null);
             std.debug.assert(data.gui.?.created);
 
             switch (event) {
-                .ParamChanged, .StateChanged => try handleError(c.puglPostRedisplay(gui_data.view)),
-                .Idle => if (Plugin.desc.gui.?.targetFps != null) try handleError(c.puglPostRedisplay(gui_data.view)),
+                .ParamChanged, .StateChanged => try gui_data.view.obscure(),
+                .Idle => if (Plugin.desc.gui.?.targetFps != null) try gui_data.view.obscure(),
                 else => {},
             }
-            try handleError(c.puglUpdate(gui_data.world, 0));
+            try gui_data.world.update(0);
         }
 
         pub fn suggestTitle(comptime plugin: type, title: [:0]const u8) !void {
             _ = plugin; // autofix
 
-            try handleError(c.puglSetViewString(gui_data.view, c.PUGL_WINDOW_TITLE, title.ptr));
+            try gui_data.view.setStringHint(.window_title, title);
         }
 
         pub fn setSize(comptime plugin: type, w: u32, h: u32) !void {
             _ = plugin; // autofix
 
-            try handleError(c.puglSetSize(gui_data.view, w, h));
+            try gui_data.view.setSizeHint(.current, .{ .width = w, .height = h });
         }
 
         pub fn getSize(comptime plugin: type) !gui.Size {
             _ = plugin; // autofix
 
-            var w: c_int = undefined;
-            var h: c_int = undefined;
-            c.puglGetSize(gui_data.view, &w, &h);
-            return .{ .w = @intCast(w), .h = @intCast(h) };
+            const size = gui_data.view.getSizeHint(.current);
+            return .{ .w = size.width, .h = size.height };
         }
     };
 
