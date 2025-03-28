@@ -1,15 +1,15 @@
 const std = @import("std");
 const zigplug = @import("zigplug");
 
-var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+var gpa = std.heap.GeneralPurposeAllocator(.{}).init;
 
 pub const desc: zigplug.Description = .{
-    .id = "com.bandithedoge.zigplug",
-    .name = "zigplug meter",
+    .id = "com.bandithedoge.zigplug_meter_example",
+    .name = "zigplug meter example",
     .vendor = "bandithedoge",
     .url = "https://bandithedoge.com/zigplug",
     .version = "0.0.1",
-    .description = "zigplug test",
+    .description = "A zigplug example",
     .features = &.{ .effect, .utility },
     .manual_url = null,
     .support_url = null,

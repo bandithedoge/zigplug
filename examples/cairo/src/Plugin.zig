@@ -3,36 +3,36 @@ const zigplug = @import("zigplug");
 
 phase: f32,
 
-var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+var gpa = std.heap.GeneralPurposeAllocator(.{}).init;
 
 const Parameters =
     enum {
-    red,
-    green,
-    blue,
+        red,
+        green,
+        blue,
 
-    pub fn setup(self: @This()) zigplug.parameters.Parameter {
-        return switch (self) {
-            .red => zigplug.parameters.makeParam(.{ .float = 0.0 }, .{
-                .name = "Red",
-            }),
-            .green => zigplug.parameters.makeParam(.{ .float = 0.0 }, .{
-                .name = "Green",
-            }),
-            .blue => zigplug.parameters.makeParam(.{ .float = 0.0 }, .{
-                .name = "Blue",
-            }),
-        };
-    }
-};
+        pub fn setup(self: @This()) zigplug.parameters.Parameter {
+            return switch (self) {
+                .red => zigplug.parameters.makeParam(.{ .float = 0.0 }, .{
+                    .name = "Red",
+                }),
+                .green => zigplug.parameters.makeParam(.{ .float = 0.0 }, .{
+                    .name = "Green",
+                }),
+                .blue => zigplug.parameters.makeParam(.{ .float = 0.0 }, .{
+                    .name = "Blue",
+                }),
+            };
+        }
+    };
 
 pub const desc: zigplug.Description = .{
-    .id = "com.bandithedoge.zigplug",
-    .name = "zigplug cairo",
+    .id = "com.bandithedoge.zigplug_cairo_example",
+    .name = "zigplug cairo example",
     .vendor = "bandithedoge",
     .url = "https://bandithedoge.com/zigplug",
     .version = "0.0.1",
-    .description = "zigplug test",
+    .description = "A zigplug example",
     .features = &.{ .effect, .utility },
     .manual_url = null,
     .support_url = null,

@@ -1,15 +1,15 @@
 const std = @import("std");
 const zigplug = @import("zigplug");
 
-var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+var gpa = std.heap.GeneralPurposeAllocator(.{}).init;
 
 pub const desc: zigplug.Description = .{
-    .id = "com.bandithedoge.zigplug_minimal",
+    .id = "com.bandithedoge.zigplug_minimal_example",
     .name = "zigplug minimal",
     .vendor = "bandithedoge",
     .url = "https://bandithedoge.com/zigplug",
     .version = "0.1.0",
-    .description = "Bare minimum required to build a zigplug plugin",
+    .description = "A zigplug example",
     .features = &.{},
 
     .ports = .{

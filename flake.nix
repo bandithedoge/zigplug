@@ -2,17 +2,26 @@
   inputs = {
     flake-parts.url = "github:hercules-ci/flake-parts";
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
-
-    zig-overlay.url = "github:mitchellh/zig-overlay";
-    zls.url = "github:zigtools/zls";
-    zls.inputs.zig-overlay.follows = "zig-overlay";
+    zig2nix.url = "github:Cloudef/zig2nix";
   };
 
-  outputs = inputs @ {flake-parts, ...}:
+  outputs = inputs @ {
+    flake-parts,
+    zig2nix,
+    ...
+  }:
     flake-parts.lib.mkFlake {inherit inputs;} {
       systems = ["x86_64-linux" "aarch64-linux" "aarch64-darwin" "x86_64-darwin"];
-      perSystem = {pkgs, ...}: {
-        devShells.default = pkgs.mkShell.override {stdenv = pkgs.zigStdenv;} {
+      perSystem = {
+        pkgs,
+        system,
+        ...
+      }: let
+        zigEnv = zig2nix.zig-env.${system} {
+          zig = zig2nix.packages.${system}.zig-master;
+        };
+      in {
+        devShells.default = zigEnv.mkShell {
           packages = with pkgs; [
             zls
 

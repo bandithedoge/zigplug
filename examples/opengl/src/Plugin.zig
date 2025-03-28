@@ -23,15 +23,15 @@ const Parameters = enum {
     }
 };
 
-var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+var gpa = std.heap.GeneralPurposeAllocator(.{}).init;
 
 pub const desc: zigplug.Description = .{
-    .id = "com.bandithedoge.zigplug",
+    .id = "com.bandithedoge.zigplug_opengl_example",
     .name = "zigplug",
     .vendor = "bandithedoge",
     .url = "https://bandithedoge.com/zigplug",
     .version = "0.0.1",
-    .description = "zigplug test",
+    .description = "A zigplug example",
     .features = &.{ .effect, .utility },
     .manual_url = null,
     .support_url = null,

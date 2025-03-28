@@ -26,7 +26,7 @@ fn ClapPlugin(comptime Plugin: type) type {
     const has_params = Plugin.desc.Parameters != null;
 
     return extern struct {
-        fn init(clap_plugin: [*c]const clap.clap_plugin) callconv(.C) bool {
+        fn init(clap_plugin: [*c]const clap.clap_plugin) callconv(.c) bool {
             zigplug.log.debug("init()\n", .{});
 
             const data = Data.cast(clap_plugin);
@@ -47,7 +47,7 @@ fn ClapPlugin(comptime Plugin: type) type {
             return true;
         }
 
-        fn destroy(clap_plugin: [*c]const clap.clap_plugin) callconv(.C) void {
+        fn destroy(clap_plugin: [*c]const clap.clap_plugin) callconv(.c) void {
             zigplug.log.debug("destroy()\n", .{});
 
             const data = Data.cast(clap_plugin);
@@ -57,7 +57,7 @@ fn ClapPlugin(comptime Plugin: type) type {
             // data.plugin.allocator.destroy(@as(*const clap.clap_plugin_t, clap_plugin));
         }
 
-        fn activate(clap_plugin: [*c]const clap.clap_plugin, sample_rate: f64, min_size: u32, max_size: u32) callconv(.C) bool {
+        fn activate(clap_plugin: [*c]const clap.clap_plugin, sample_rate: f64, min_size: u32, max_size: u32) callconv(.c) bool {
             zigplug.log.debug("activate({}, {}, {})\n", .{ sample_rate, min_size, max_size });
 
             const data = Data.cast(clap_plugin);
@@ -67,32 +67,32 @@ fn ClapPlugin(comptime Plugin: type) type {
             return true;
         }
 
-        fn deactivate(clap_plugin: [*c]const clap.clap_plugin) callconv(.C) void {
+        fn deactivate(clap_plugin: [*c]const clap.clap_plugin) callconv(.c) void {
             zigplug.log.debug("deactivate()\n", .{});
 
             _ = clap_plugin;
         }
 
-        fn start_processing(clap_plugin: [*c]const clap.clap_plugin) callconv(.C) bool {
+        fn start_processing(clap_plugin: [*c]const clap.clap_plugin) callconv(.c) bool {
             zigplug.log.debug("start_processing()\n", .{});
 
             _ = clap_plugin;
             return true;
         }
 
-        fn stop_processing(clap_plugin: [*c]const clap.clap_plugin) callconv(.C) void {
+        fn stop_processing(clap_plugin: [*c]const clap.clap_plugin) callconv(.c) void {
             zigplug.log.debug("stop_processing()\n", .{});
 
             _ = clap_plugin;
         }
 
-        fn reset(clap_plugin: [*c]const clap.clap_plugin) callconv(.C) void {
+        fn reset(clap_plugin: [*c]const clap.clap_plugin) callconv(.c) void {
             zigplug.log.debug("reset()\n", .{});
 
             _ = clap_plugin;
         }
 
-        fn process(clap_plugin: [*c]const clap.clap_plugin, clap_process: [*c]const clap.clap_process_t) callconv(.C) clap.clap_process_status {
+        fn process(clap_plugin: [*c]const clap.clap_plugin, clap_process: [*c]const clap.clap_process_t) callconv(.c) clap.clap_process_status {
             const data = Data.cast(clap_plugin);
 
             if (has_params)
@@ -190,14 +190,14 @@ fn ClapPlugin(comptime Plugin: type) type {
             };
         }
 
-        fn get_extension(clap_plugin: [*c]const clap.clap_plugin, id: [*c]const u8) callconv(.C) ?*const anyopaque {
+        fn get_extension(clap_plugin: [*c]const clap.clap_plugin, id: [*c]const u8) callconv(.c) ?*const anyopaque {
             zigplug.log.debug("get_extension({s})\n", .{id});
             _ = clap_plugin; // autofix
 
             return @import("extensions.zig").getExtension(Plugin, std.mem.span(id));
         }
 
-        fn on_main_thread(clap_plugin: [*c]const clap.clap_plugin) callconv(.C) void {
+        fn on_main_thread(clap_plugin: [*c]const clap.clap_plugin) callconv(.c) void {
             zigplug.log.debug("on_main_thread()\n", .{});
 
             _ = clap_plugin;
@@ -207,14 +207,14 @@ fn ClapPlugin(comptime Plugin: type) type {
 
 fn PluginFactory(comptime Plugin: type) type {
     return extern struct {
-        fn get_plugin_count(factory: [*c]const clap.clap_plugin_factory) callconv(.C) u32 {
+        fn get_plugin_count(factory: [*c]const clap.clap_plugin_factory) callconv(.c) u32 {
             zigplug.log.debug("get_plugin_count()\n", .{});
 
             _ = factory;
             return 1;
         }
 
-        fn get_plugin_descriptor(factory: [*c]const clap.clap_plugin_factory, index: u32) callconv(.C) [*c]const clap.clap_plugin_descriptor_t {
+        fn get_plugin_descriptor(factory: [*c]const clap.clap_plugin_factory, index: u32) callconv(.c) [*c]const clap.clap_plugin_descriptor_t {
             zigplug.log.debug("get_plugin_descriptor({any})\n", .{index});
 
             _ = factory;
@@ -290,7 +290,7 @@ fn PluginFactory(comptime Plugin: type) type {
             };
         }
 
-        fn create_plugin(factory: [*c]const clap.clap_plugin_factory, host: [*c]const clap.clap_host_t, plugin_id: [*c]const u8) callconv(.C) [*c]const clap.clap_plugin_t {
+        fn create_plugin(factory: [*c]const clap.clap_plugin_factory, host: [*c]const clap.clap_host_t, plugin_id: [*c]const u8) callconv(.c) [*c]const clap.clap_plugin_t {
             zigplug.log.debug("create_plugin({s})\n", .{plugin_id});
             _ = factory;
 
@@ -334,17 +334,17 @@ fn PluginFactory(comptime Plugin: type) type {
 
 fn PluginEntry(factory: clap.clap_plugin_factory_t) type {
     return extern struct {
-        fn init(plugin_path: [*c]const u8) callconv(.C) bool {
+        fn init(plugin_path: [*c]const u8) callconv(.c) bool {
             zigplug.log.debug("init({s})\n", .{plugin_path});
 
             return true;
         }
 
-        fn deinit() callconv(.C) void {
+        fn deinit() callconv(.c) void {
             zigplug.log.debug("deinit()\n", .{});
         }
 
-        fn get_factory(factory_id: [*c]const u8) callconv(.C) ?*const anyopaque {
+        fn get_factory(factory_id: [*c]const u8) callconv(.c) ?*const anyopaque {
             zigplug.log.debug("get_factory({s})\n", .{factory_id});
 
             const id = std.mem.span(factory_id);

@@ -1,20 +1,22 @@
 .{
-    .name = "zigplug",
+    .name = .zigplug,
+    .fingerprint = 0x7af14e44944e8dde,
     .version = "0.0.0",
+
     .dependencies = .{
         .clap_api = .{
             .url = "https://github.com/free-audio/clap/archive/refs/tags/1.2.2.tar.gz",
-            .hash = "12204f573701c6605bb3ce4f18c2a7ce1fe3be72fa643e59ea09e46b70c9131a3479",
+            .hash = "N-V-__8AAIjdOgBPVzcBxmBbs85PGMKnzh_jvnL6ZD5Z6gnk",
             .lazy = true,
         },
         .pugl = .{
             .url = "https://github.com/lv2/pugl/archive/edd13c1b952b16633861855fcdbdd164e87b3c0a.tar.gz",
-            .hash = "122014ebd228c557711b81b5e7385a68f1a074b5291f13355f00dc9d678f20e5ad83",
+            .hash = "N-V-__8AAH_4DwAU69IoxVdxG4G15zhaaPGgdLUpHxM1XwDc",
             .lazy = true,
         },
         .cairo = .{
-            .url = "https://github.com/bandithedoge/cairo.zig/archive/36be55fac058bf64518223149dc73575c58bbd8b.tar.gz",
-            .hash = "1220686fd958ea3f7d826a3f2ebde3cf4eca55d02a6024ba33543db2134605b4f756",
+            .url = "https://github.com/bandithedoge/cairo.zig/archive/bfc51c8232486ed21e83e020711aa039c7b6bc04.tar.gz",
+            .hash = "cairo_zig-1.18.4-GbxI8QpbAQD1mm-pi1QJuwYmxvhdVf0K1XhMEFlgsVhb",
             .lazy = true,
         },
     },

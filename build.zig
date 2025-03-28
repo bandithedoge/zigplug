@@ -1,5 +1,4 @@
 const std = @import("std");
-const this = @This();
 
 pub fn build(b: *std.Build) !void {
     const target = b.standardTargetOptions(.{});
@@ -48,7 +47,7 @@ pub fn build(b: *std.Build) !void {
                     pugl.linkSystemLibrary("X11");
 
                     switch (options.gui_backend) {
-                        .gl => zigplug.linkSystemLibrary("gl", .{}),
+                        .gl => pugl.linkSystemLibrary("gl"),
                         .cairo => {
                             if (b.lazyDependency("cairo", .{
                                 .target = target,
@@ -129,23 +128,27 @@ pub const PluginBuilder = struct {
 
     pub fn addClapTarget(self: *const PluginBuilder) !*std.Build.Step.Compile {
         const b = self.zigplug.builder;
-
-        const name = try std.mem.concat(b.allocator, u8, &[_][]const u8{ self.object.name, ".clap" });
+        const name = b.fmt("{s}.clap", .{self.object.name});
 
         const entry = b.addWriteFile("clap_entry.zig",
             \\ export const clap_entry = @import("clap_adapter").clap_entry(@import("plugin_root"));
         );
         entry.step.dependOn(&self.object.step);
 
-        const clap = b.addSharedLibrary(.{
+        const clap = b.addLibrary(.{
             .name = name,
-            .root_source_file = entry.getDirectory().path(b, "clap_entry.zig"),
-            .target = self.object.root_module.resolved_target orelse b.standardTargetOptions(.{}),
-            .optimize = self.object.root_module.optimize orelse b.standardOptimizeOption(.{}),
+            .linkage = .dynamic,
+            .root_module = b.createModule(.{
+                .root_source_file = entry.getDirectory().path(b, "clap_entry.zig"),
+                .target = self.object.root_module.resolved_target orelse b.standardTargetOptions(.{}),
+                .optimize = self.object.root_module.optimize orelse b.standardOptimizeOption(.{}),
+                .imports = &.{
+                    .{ .name = "plugin_root", .module = self.object.root_module },
+                    .{ .name = "clap_adapter", .module = self.zigplug.module("clap_adapter") },
+                },
+            }),
         });
         clap.step.dependOn(&entry.step);
-        clap.root_module.addImport("plugin_root", &self.object.root_module);
-        clap.root_module.addImport("clap_adapter", self.zigplug.module("clap_adapter"));
 
         const install = self.object.step.owner.addInstallArtifact(clap, .{
             .dest_sub_path = name,

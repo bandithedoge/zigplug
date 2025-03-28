@@ -1,10 +1,17 @@
 .{
-    .name = "zigplug_example",
+    .name = .zigplug_opengl_example,
+    .fingerprint = 0xea1658ebf05d94f0,
     .version = "0.0.0",
+
     .dependencies = .{
         .zigplug = .{
             .path = "../..",
         },
     },
-    .paths = .{""},
+
+    .paths = .{
+        "src",
+        "build.zig",
+        "build.zig.zon",
+    },
 }

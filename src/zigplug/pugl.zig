@@ -81,7 +81,7 @@ pub const Callbacks = struct {
 
 fn puglBackend(api: enum { gl, cairo }, version: ?Version, callbacks: Callbacks) gui.Backend {
     const B = struct {
-        fn onEvent(view: ?*c.PuglView, event: [*c]const c.PuglEvent) callconv(.C) c.PuglStatus {
+        fn onEvent(view: ?*c.PuglView, event: [*c]const c.PuglEvent) callconv(.c) c.PuglStatus {
             switch (event.*.type) {
                 c.PUGL_EXPOSE => {
                     const plugin_data = zigplug.PluginData.cast(c.puglGetHandle(view));

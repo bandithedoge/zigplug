@@ -1,10 +1,17 @@
 .{
-    .name = "zigplug_minimal",
+    .name = .zigplug_minimal_example,
+    .fingerprint = 0xbe963eb62c6483fb,
     .version = "0.0.0",
+
     .dependencies = .{
         .zigplug = .{
             .path = "../..",
         },
     },
-    .paths = .{""},
+
+    .paths = .{
+        "src",
+        "build.zig",
+        "build.zig.zon",
+    },
 }

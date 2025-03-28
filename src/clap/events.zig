@@ -6,7 +6,7 @@ pub fn syncMainToAudio(comptime Plugin: type, data: *clap.Data, out: [*c]const c
     data.plugin_data.param_lock.lock();
     defer data.plugin_data.param_lock.unlock();
 
-    for (0..@typeInfo(Plugin.desc.Parameters.?).Enum.fields.len) |i| {
+    for (0..@typeInfo(Plugin.desc.Parameters.?).@"enum".fields.len) |i| {
         const param = &data.plugin_data.parameters.items[i];
         if (param.main_changed) {
             param.set(param.main_value);
@@ -40,7 +40,7 @@ pub fn syncAudioToMain(comptime Plugin: type, data: *clap.Data) bool {
     data.plugin_data.param_lock.lock();
     defer data.plugin_data.param_lock.unlock();
 
-    for (0..@typeInfo(Plugin.desc.Parameters.?).Enum.fields.len) |i| {
+    for (0..@typeInfo(Plugin.desc.Parameters.?).@"enum".fields.len) |i| {
         const param = &data.plugin_data.parameters.items[i];
         if (param.changed) {
             param.main_value = param.get();

@@ -5,21 +5,24 @@ pub fn build(b: *std.Build) !void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    const plugin = b.addStaticLibrary(.{
-        .name = "cairo_example",
-        .target = target,
-        .optimize = optimize,
-        .root_source_file = b.path("src/Plugin.zig"),
-    });
-
     const zigplug_dep = b.dependency("zigplug", .{
         .with_clap = true,
         .with_gui = true,
         .gui_backend = .cairo,
     });
 
-    plugin.root_module.addImport("zigplug", zigplug_dep.module("zigplug"));
-    plugin.root_module.addImport("cairo_c", zigplug_dep.module("cairo_c"));
+    const plugin = b.addLibrary(.{
+        .name = "zigplug_cairo_example",
+        .root_module = b.createModule(.{
+            .target = target,
+            .optimize = optimize,
+            .root_source_file = b.path("src/Plugin.zig"),
+            .imports = &.{
+                .{ .name = "zigplug", .module = zigplug_dep.module("zigplug") },
+                .{ .name = "cairo_c", .module = zigplug_dep.module("cairo_c") },
+            },
+        }),
+    });
 
     const builder = zigplug.PluginBuilder.new(plugin, zigplug_dep);
 

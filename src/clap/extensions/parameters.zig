@@ -7,24 +7,24 @@ const events = @import("../events.zig");
 
 pub fn Parameters(comptime Plugin: type) *const c.clap_plugin_params_t {
     const parameters = struct {
-        pub fn count(clap_plugin: [*c]const c.clap_plugin_t) callconv(.C) u32 {
+        pub fn count(clap_plugin: [*c]const c.clap_plugin_t) callconv(.c) u32 {
             const data = clap.Data.cast(clap_plugin);
 
             std.debug.assert(Plugin.desc.Parameters != null);
-            std.debug.assert(@typeInfo(Plugin.desc.Parameters.?) == .Enum);
+            std.debug.assert(@typeInfo(Plugin.desc.Parameters.?) == .@"enum");
 
             data.plugin_data.param_lock.lock();
             defer data.plugin_data.param_lock.unlock();
 
             data.plugin_data.parameters = std.ArrayList(zigplug.parameters.Parameter).init(data.plugin.allocator);
 
-            return @typeInfo(Plugin.desc.Parameters.?).Enum.fields.len;
+            return @typeInfo(Plugin.desc.Parameters.?).@"enum".fields.len;
         }
 
-        pub fn get_info(clap_plugin: [*c]const c.clap_plugin_t, index: u32, info: [*c]c.clap_param_info_t) callconv(.C) bool {
+        pub fn get_info(clap_plugin: [*c]const c.clap_plugin_t, index: u32, info: [*c]c.clap_param_info_t) callconv(.c) bool {
             const data = clap.Data.cast(clap_plugin);
 
-            if (index >= @typeInfo(Plugin.desc.Parameters.?).Enum.fields.len)
+            if (index >= @typeInfo(Plugin.desc.Parameters.?).@"enum".fields.len)
                 return false;
 
             // const param = plugin.callbacks.setupParameter.?(plugin.Parameters.?, index);
@@ -50,10 +50,10 @@ pub fn Parameters(comptime Plugin: type) *const c.clap_plugin_params_t {
             return true;
         }
 
-        pub fn get_value(clap_plugin: [*c]const c.clap_plugin_t, id: c.clap_id, value: [*c]f64) callconv(.C) bool {
+        pub fn get_value(clap_plugin: [*c]const c.clap_plugin_t, id: c.clap_id, value: [*c]f64) callconv(.c) bool {
             const data = clap.Data.cast(clap_plugin);
 
-            if (id >= @typeInfo(Plugin.desc.Parameters.?).Enum.fields.len)
+            if (id >= @typeInfo(Plugin.desc.Parameters.?).@"enum".fields.len)
                 return false;
 
             data.plugin_data.param_lock.lock();
@@ -66,7 +66,7 @@ pub fn Parameters(comptime Plugin: type) *const c.clap_plugin_params_t {
             return true;
         }
 
-        pub fn value_to_text(clap_plugin: [*c]const c.clap_plugin_t, id: c.clap_id, value: f64, display: [*c]u8, size: u32) callconv(.C) bool {
+        pub fn value_to_text(clap_plugin: [*c]const c.clap_plugin_t, id: c.clap_id, value: f64, display: [*c]u8, size: u32) callconv(.c) bool {
             const data = clap.Data.cast(clap_plugin);
 
             var param = data.plugin_data.parameters.items[id];
@@ -91,7 +91,7 @@ pub fn Parameters(comptime Plugin: type) *const c.clap_plugin_params_t {
             return true;
         }
 
-        pub fn text_to_value(clap_plugin: [*c]const c.clap_plugin_t, id: c.clap_id, display: [*c]const u8, value: [*c]f64) callconv(.C) bool {
+        pub fn text_to_value(clap_plugin: [*c]const c.clap_plugin_t, id: c.clap_id, display: [*c]const u8, value: [*c]f64) callconv(.c) bool {
             const data = clap.Data.cast(clap_plugin);
 
             var param = data.plugin_data.parameters.items[id];
@@ -115,7 +115,7 @@ pub fn Parameters(comptime Plugin: type) *const c.clap_plugin_params_t {
             return true;
         }
 
-        pub fn flush(clap_plugin: [*c]const c.clap_plugin_t, in: [*c]const c.clap_input_events_t, out: [*c]const c.clap_output_events_t) callconv(.C) void {
+        pub fn flush(clap_plugin: [*c]const c.clap_plugin_t, in: [*c]const c.clap_input_events_t, out: [*c]const c.clap_output_events_t) callconv(.c) void {
             const data = clap.Data.cast(clap_plugin);
 
             events.syncMainToAudio(Plugin, data, out);

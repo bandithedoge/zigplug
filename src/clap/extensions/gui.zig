@@ -13,14 +13,14 @@ const log = std.log.scoped(.zigplugClapGui);
 
 pub fn Gui(comptime Plugin: type) *const c.clap_plugin_gui_t {
     const gui = struct {
-        pub fn is_api_supported(clap_plugin: [*c]const c.clap_plugin_t, api: [*c]const u8, is_floating: bool) callconv(.C) bool {
+        pub fn is_api_supported(clap_plugin: [*c]const c.clap_plugin_t, api: [*c]const u8, is_floating: bool) callconv(.c) bool {
             _ = clap_plugin; // autofix
             log.info("is_api_supported({s}, {})", .{ api, is_floating });
 
             return !is_floating and std.mem.eql(u8, std.mem.span(api), preferred_api);
         }
 
-        pub fn get_preferred_api(clap_plugin: [*c]const c.clap_plugin_t, api: [*c][*c]const u8, is_floating: [*c]bool) callconv(.C) bool {
+        pub fn get_preferred_api(clap_plugin: [*c]const c.clap_plugin_t, api: [*c][*c]const u8, is_floating: [*c]bool) callconv(.c) bool {
             _ = clap_plugin; // autofix
             log.info("get_preferred_api()", .{});
             api.* = preferred_api;
@@ -33,7 +33,7 @@ pub fn Gui(comptime Plugin: type) *const c.clap_plugin_gui_t {
             return data.host_gui.*.request_resize.?(data.host.?, w, h);
         }
 
-        pub fn create(clap_plugin: [*c]const c.clap_plugin_t, api: [*c]const u8, is_floating: bool) callconv(.C) bool {
+        pub fn create(clap_plugin: [*c]const c.clap_plugin_t, api: [*c]const u8, is_floating: bool) callconv(.c) bool {
             log.info("create({s}, {})", .{ api, is_floating });
             const data = clap.Data.cast(clap_plugin);
 
@@ -49,7 +49,7 @@ pub fn Gui(comptime Plugin: type) *const c.clap_plugin_gui_t {
             return true;
         }
 
-        pub fn destroy(clap_plugin: [*c]const c.clap_plugin_t) callconv(.C) void {
+        pub fn destroy(clap_plugin: [*c]const c.clap_plugin_t) callconv(.c) void {
             log.info("destroy()", .{});
             const data = clap.Data.cast(clap_plugin);
 
@@ -60,14 +60,14 @@ pub fn Gui(comptime Plugin: type) *const c.clap_plugin_gui_t {
             data.plugin_data.gui.?.created = false;
         }
 
-        pub fn set_scale(clap_plugin: [*c]const c.clap_plugin_t, scale: f64) callconv(.C) bool {
+        pub fn set_scale(clap_plugin: [*c]const c.clap_plugin_t, scale: f64) callconv(.c) bool {
             _ = clap_plugin; // autofix
             log.info("set_scale({})", .{scale});
 
             return true;
         }
 
-        pub fn get_size(clap_plugin: [*c]const c.clap_plugin_t, width: [*c]u32, height: [*c]u32) callconv(.C) bool {
+        pub fn get_size(clap_plugin: [*c]const c.clap_plugin_t, width: [*c]u32, height: [*c]u32) callconv(.c) bool {
             _ = clap_plugin; // autofix
             log.info("get_size()", .{});
 
@@ -83,25 +83,25 @@ pub fn Gui(comptime Plugin: type) *const c.clap_plugin_gui_t {
             return true;
         }
 
-        pub fn can_resize(clap_plugin: [*c]const c.clap_plugin_t) callconv(.C) bool {
+        pub fn can_resize(clap_plugin: [*c]const c.clap_plugin_t) callconv(.c) bool {
             _ = clap_plugin; // autofix
             log.info("can_resize()", .{});
             return Plugin.desc.gui.?.resizable;
         }
 
-        pub fn get_resize_hints(clap_plugin: [*c]const c.clap_plugin_t, hints: [*c]c.clap_gui_resize_hints_t) callconv(.C) bool {
+        pub fn get_resize_hints(clap_plugin: [*c]const c.clap_plugin_t, hints: [*c]c.clap_gui_resize_hints_t) callconv(.c) bool {
             _ = hints; // autofix
             _ = clap_plugin; // autofix
             log.info("get_resize_hints()", .{});
             return false;
         }
 
-        pub fn adjust_size(clap_plugin: [*c]const c.clap_plugin_t, width: [*c]u32, height: [*c]u32) callconv(.C) bool {
+        pub fn adjust_size(clap_plugin: [*c]const c.clap_plugin_t, width: [*c]u32, height: [*c]u32) callconv(.c) bool {
             log.info("adjust_size()", .{});
             return get_size(clap_plugin, width, height);
         }
 
-        pub fn set_size(clap_plugin: [*c]const c.clap_plugin_t, width: u32, height: u32) callconv(.C) bool {
+        pub fn set_size(clap_plugin: [*c]const c.clap_plugin_t, width: u32, height: u32) callconv(.c) bool {
             _ = clap_plugin; // autofix
             log.info("set_size({}, {})", .{ width, height });
 
@@ -115,7 +115,7 @@ pub fn Gui(comptime Plugin: type) *const c.clap_plugin_gui_t {
             return true;
         }
 
-        pub fn set_parent(clap_plugin: [*c]const c.clap_plugin_t, window: [*c]const c.clap_window_t) callconv(.C) bool {
+        pub fn set_parent(clap_plugin: [*c]const c.clap_plugin_t, window: [*c]const c.clap_window_t) callconv(.c) bool {
             _ = clap_plugin; // autofix
             log.info("set_parent({s})", .{window.*.api});
 
@@ -132,14 +132,14 @@ pub fn Gui(comptime Plugin: type) *const c.clap_plugin_gui_t {
             return true;
         }
 
-        pub fn set_transient(clap_plugin: [*c]const c.clap_plugin_t, window: [*c]const c.clap_window_t) callconv(.C) bool {
+        pub fn set_transient(clap_plugin: [*c]const c.clap_plugin_t, window: [*c]const c.clap_window_t) callconv(.c) bool {
             _ = window; // autofix
             _ = clap_plugin; // autofix
             log.info("set_transient()", .{});
             return false;
         }
 
-        pub fn suggest_title(clap_plugin: [*c]const c.clap_plugin_t, title: [*c]const u8) callconv(.C) void {
+        pub fn suggest_title(clap_plugin: [*c]const c.clap_plugin_t, title: [*c]const u8) callconv(.c) void {
             _ = clap_plugin; // autofix
             log.info("suggest_title({s})", .{title});
             std.debug.assert(Plugin.desc.gui != null);
@@ -149,7 +149,7 @@ pub fn Gui(comptime Plugin: type) *const c.clap_plugin_gui_t {
             }
         }
 
-        pub fn show(clap_plugin: [*c]const c.clap_plugin_t) callconv(.C) bool {
+        pub fn show(clap_plugin: [*c]const c.clap_plugin_t) callconv(.c) bool {
             log.info("show()", .{});
             const data = clap.Data.cast(clap_plugin);
 
@@ -161,7 +161,7 @@ pub fn Gui(comptime Plugin: type) *const c.clap_plugin_gui_t {
             return true;
         }
 
-        pub fn hide(clap_plugin: [*c]const c.clap_plugin_t) callconv(.C) bool {
+        pub fn hide(clap_plugin: [*c]const c.clap_plugin_t) callconv(.c) bool {
             log.info("hide()", .{});
             const data = clap.Data.cast(clap_plugin);
 
