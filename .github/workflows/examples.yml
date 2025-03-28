@@ -10,17 +10,17 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Nix cache
-        uses: cachix/cachix-action@v16
-        with:
-          name: zigplug
-          authToken: "${{ secrets.CACHIX_AUTH_TOKEN }}"
-
       - name: Disable AppArmor
         run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
 
       - name: Install Nix
         uses: DeterminateSystems/nix-installer-action@main
+
+      - name: Setup Nix cache
+        uses: cachix/cachix-action@v16
+        with:
+          name: zigplug
+          authToken: "${{ secrets.CACHIX_AUTH_TOKEN }}"
 
       - name: Build examples
         run: |
