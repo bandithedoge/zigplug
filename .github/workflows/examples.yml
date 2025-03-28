@@ -17,4 +17,8 @@ jobs:
         uses: DeterminateSystems/nix-installer-action@main
 
       - name: Build examples
-        run: nix develop -c find -path "./examples/*/build.zig" -execdir zig build \;
+        run: |
+          for example in $(find $(realpath ..) -path "*/zigplug/examples/*/build.zig"); do
+            cd $(dirname $example)
+            nix develop -c zig build
+          done
