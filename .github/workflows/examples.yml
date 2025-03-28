@@ -1,0 +1,20 @@
+on:
+  push:
+  workflow_dispatch:
+  pull_request:
+
+jobs:
+  examples:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Disable AppArmor
+        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@main
+
+      - name: Build examples
+        run: nix develop -c find -path "./examples/*/build.zig" -execdir zig build \;
