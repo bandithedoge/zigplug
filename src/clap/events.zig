@@ -53,6 +53,7 @@ pub fn syncAudioToMain(comptime Plugin: type, data: *clap.Data) bool {
 }
 
 pub fn processEvent(Plugin: type, clap_plugin: [*c]const c.clap_plugin_t, event: *const c.clap_event_header_t) void {
+    _ = Plugin; // autofix
     const data = clap.Data.cast(clap_plugin);
     if (event.space_id == c.CLAP_CORE_EVENT_SPACE_ID) {
         switch (event.type) {
@@ -66,11 +67,6 @@ pub fn processEvent(Plugin: type, clap_plugin: [*c]const c.clap_plugin_t, event:
                 const param = &data.plugin_data.parameters.items[value_event.param_id];
                 param.value.fromFloat(value_event.value);
                 param.changed = true;
-
-                if (comptime Plugin.desc.gui) |gui| {
-                    if (data.plugin_data.gui.?.visible)
-                        gui.backend.tick(Plugin, .ParamChanged) catch {};
-                }
             },
             else => {},
         }

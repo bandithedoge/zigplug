@@ -20,12 +20,6 @@ pub fn State(comptime Plugin: type) *const c.clap_plugin_state_t {
                 return false;
             };
 
-            if (comptime Plugin.desc.gui) |gui| {
-                if (data.plugin_data.gui) |gui_data|
-                    if (gui_data.visible)
-                        gui.backend.tick(Plugin, .StateChanged) catch return false;
-            }
-
             return @sizeOf(zigplug.parameters.Parameter) * param_count == stream.*.write.?(stream, (params.toOwnedSlice() catch {
                 return false;
             }).ptr, @sizeOf(zigplug.parameters.Parameter) * param_count);
@@ -45,12 +39,6 @@ pub fn State(comptime Plugin: type) *const c.clap_plugin_state_t {
 
             for (data.plugin_data.parameters.items, 0..) |*param, i| {
                 param.set(buffer[i].get());
-            }
-
-            if (comptime Plugin.desc.gui) |gui| {
-                if (data.plugin_data.gui) |gui_data|
-                    if (gui_data.visible)
-                        gui.backend.tick(Plugin, .StateChanged) catch return false;
             }
 
             return result;

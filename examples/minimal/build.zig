@@ -6,10 +6,10 @@ pub fn build(b: *std.Build) !void {
     const optimize = b.standardOptimizeOption(.{});
 
     const zigplug_dep = b.dependency("zigplug", .{
-        .with_clap = true,
+        .clap = true,
     });
 
-    const plugin = b.addLibrary(.{
+    const plugin = b.addStaticLibrary(.{
         .name = "zigplug_minimal_example",
         .root_module = b.createModule(.{
             .target = target,

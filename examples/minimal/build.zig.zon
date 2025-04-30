@@ -1,6 +1,5 @@
 .{
-    .name = .zigplug_minimal_example,
-    .fingerprint = 0xbe963eb62c6483fb,
+    .name = "zigplug_minimal_example",
     .version = "0.0.0",
 
     .dependencies = .{

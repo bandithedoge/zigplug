@@ -2,14 +2,13 @@
   inputs = {
     flake-parts.url = "github:hercules-ci/flake-parts";
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
-    zig2nix.url = "github:Cloudef/zig2nix";
+    zig-overlay = {
+      url = "github:bandithedoge/zig-overlay";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
-  outputs = inputs @ {
-    flake-parts,
-    zig2nix,
-    ...
-  }:
+  outputs = inputs @ {flake-parts, ...}:
     flake-parts.lib.mkFlake {inherit inputs;} {
       systems = ["x86_64-linux" "aarch64-linux" "aarch64-darwin" "x86_64-darwin"];
       perSystem = {
@@ -17,13 +16,12 @@
         system,
         ...
       }: let
-        zigEnv = zig2nix.zig-env.${system} {
-          zig = zig2nix.packages.${system}.zig-master;
-        };
+        zig' = inputs.zig-overlay.packages.${system}.mach-latest;
       in {
-        devShells.default = zigEnv.mkShell {
+        devShells.default = pkgs.mkShell {
           packages = with pkgs; [
-            zls
+            zig'
+            zig'.zls
 
             libGL
             pixman

@@ -1,22 +1,18 @@
 const std = @import("std");
 pub const parameters = @import("parameters.zig");
-pub const gui = @import("gui.zig");
 
 pub const Feature = enum { instrument, effect, note_effect, note_detector, analyzer, synthesizer, sampler, drum, drum_machine, filter, phaser, equalizer, deesser, phase_vocoder, granular, frequency_shifter, pitch_shifter, distortion, transient_shaper, compressor, expander, gate, limiter, flanger, chorus, delay, reverb, tremolo, glitch, utility, pitch_correction, restoration, multi_effects, mixing, mastering, mono, stereo, surround, ambisonic };
 
 pub const Port = struct {
-    name: [:0]const u8,
+    name: [:0]const u8, // TODO: make this optional
     channels: u32,
 };
 
-pub const ProcessBuffer = struct {
-    data: [][*]f32, // TODO: use a slice for sample data
-    samples: u32,
-};
-
 pub const ProcessBlock = struct {
-    in: []ProcessBuffer,
-    out: []ProcessBuffer,
+    // TODO: use slices here
+    in: []const []const []const f32,
+    out: [][][]f32,
+    samples: usize,
     sample_rate: u32,
 };
 
@@ -30,8 +26,6 @@ pub const PluginData = struct {
     sample_rate: u32,
     param_lock: std.Thread.Mutex,
     parameters: std.ArrayList(parameters.Parameter),
-
-    gui: ?gui.Data = null,
 
     pub fn cast(ptr: ?*anyopaque) *PluginData {
         return @ptrCast(@alignCast(ptr));
@@ -58,15 +52,13 @@ pub const Description = struct {
     ports: Ports,
 
     Parameters: ?type = null,
-
-    gui: ?gui.Options = null,
 };
 
 pub const Plugin = struct {
     const Callbacks = struct {
         init: *const fn () *anyopaque,
         deinit: *const fn (*anyopaque) void,
-        process: *const fn (*anyopaque, ProcessBlock) ProcessStatus,
+        process: *const fn (*anyopaque, ProcessBlock) anyerror!void,
     };
 
     const Options = struct {
@@ -77,8 +69,7 @@ pub const Plugin = struct {
     allocator: std.mem.Allocator,
     callbacks: Callbacks,
 
-    pub fn new(comptime T: type, options: Options, callbacks: Callbacks) Plugin {
-        _ = T; // autofix
+    pub fn new(options: Options, callbacks: Callbacks) Plugin {
         const ptr = callbacks.init();
         return .{
             .ptr = ptr,
@@ -91,9 +82,13 @@ pub const Plugin = struct {
         self.callbacks.deinit(self.ptr);
     }
 
-    pub fn process(self: *Plugin, block: ProcessBlock) ProcessStatus {
-        return self.callbacks.process(self.ptr, block);
+    pub fn process(self: *Plugin, block: ProcessBlock) !void {
+        try self.callbacks.process(self.ptr, block);
     }
 };
 
 pub const log = std.log.scoped(.zigplug);
+
+comptime {
+    std.testing.refAllDeclsRecursive(@This());
+}

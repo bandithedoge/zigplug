@@ -19,19 +19,5 @@ pub fn getExtension(comptime Plugin: type, id: [:0]const u8) ?*const anyopaque {
         }
     }
 
-    if (Plugin.desc.gui != null and options.with_gui) {
-        if (std.mem.eql(u8, id, &c.CLAP_EXT_GUI)) {
-            return @import("extensions/gui.zig").Gui(Plugin);
-        }
-
-        if (std.mem.eql(u8, id, &c.CLAP_EXT_POSIX_FD_SUPPORT)) {
-            return @import("extensions/posix_fd_support.zig").PosixFdSupport(Plugin);
-        }
-
-        if (std.mem.eql(u8, id, &c.CLAP_EXT_TIMER_SUPPORT)) {
-            return @import("extensions/timer_support.zig").TimerSupport(Plugin);
-        }
-    }
-
     return null;
 }

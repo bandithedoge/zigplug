@@ -5,10 +5,7 @@ pub fn build(b: *std.Build) !void {
     const optimize = b.standardOptimizeOption(.{});
 
     const options = .{
-        .with_clap = b.option(bool, "with_clap", "Build CLAP target") orelse false,
-
-        .with_gui = b.option(bool, "with_gui", "Build GUI") orelse false,
-        .gui_backend = b.option(enum { external, gl, cairo }, "gui_backend", "GUI backend") orelse .gl,
+        .clap = b.option(bool, "clap", "Build CLAP target") orelse false,
     };
 
     const options_step = b.addOptions();
@@ -26,36 +23,17 @@ pub fn build(b: *std.Build) !void {
         },
     });
 
-    const zigplug_lib = b.addLibrary(.{
-        .name = "zigplug",
+    const test_step = b.step("test", "Run unit tests");
+    const tests = b.addTest(.{
         .root_module = zigplug,
     });
+    const run_tests = b.addRunArtifact(tests);
+    test_step.dependOn(&run_tests.step);
 
-    b.installArtifact(zigplug_lib);
-
-    if (options.with_gui) {
-        if (b.lazyDependency("pugl", .{
+    if (options.clap) {
+        const clap_adapter = b.addModule("clap_adapter", .{
             .target = target,
             .optimize = optimize,
-            .xrandr = false,
-            .xcursor = false,
-            .opengl = options.gui_backend == .gl,
-            .cairo = options.gui_backend == .cairo,
-            .stub = options.gui_backend == .external,
-        })) |pugl| {
-            zigplug_lib.installLibraryHeaders(pugl.artifact("pugl"));
-            zigplug.addImport("pugl", pugl.module("pugl"));
-
-            switch (options.gui_backend) {
-                .gl => zigplug.addImport("backend_opengl", pugl.module("backend_opengl")),
-                .cairo => zigplug.addImport("backend_cairo", pugl.module("backend_cairo")),
-                else => unreachable,
-            }
-        }
-    }
-
-    if (options.with_clap) {
-        const clap_adapter = b.addModule("clap_adapter", .{
             .root_source_file = b.path("src/clap/adapter.zig"),
             .imports = &.{
                 .{ .name = "zigplug", .module = zigplug },
@@ -64,7 +42,7 @@ pub fn build(b: *std.Build) !void {
         });
         clap_adapter.addImport("clap_adapter", clap_adapter);
 
-        if (b.lazyDependency("clap_api", .{})) |clap_dep| {
+        if (b.lazyDependency("clap", .{})) |clap_dep| {
             const clap_c = b.addTranslateC(.{
                 .root_source_file = clap_dep.path("include/clap/clap.h"),
                 .target = target,
@@ -74,6 +52,10 @@ pub fn build(b: *std.Build) !void {
                 .root_source_file = clap_c.getOutput(),
             });
         }
+
+        const clap_tests = b.addTest(.{ .root_module = clap_adapter });
+        const run_clap_tests = b.addRunArtifact(clap_tests);
+        test_step.dependOn(&run_clap_tests.step);
     }
 }
 
@@ -97,9 +79,8 @@ pub const PluginBuilder = struct {
         );
         entry.step.dependOn(&self.object.step);
 
-        const clap = b.addLibrary(.{
+        const clap = b.addSharedLibrary(.{
             .name = name,
-            .linkage = .dynamic,
             .root_module = b.createModule(.{
                 .root_source_file = entry.getDirectory().path(b, "clap_entry.zig"),
                 .target = self.object.root_module.resolved_target orelse b.standardTargetOptions(.{}),

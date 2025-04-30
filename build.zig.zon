@@ -1,17 +1,12 @@
 .{
-    .name = .zigplug,
-    .fingerprint = 0x7af14e44944e8dde,
+    .name = "zigplug",
     .version = "0.0.0",
+    .minimum_zig_version = "0.14.0-dev.2577+271452d22",
 
     .dependencies = .{
-        .clap_api = .{
+        .clap = .{
             .url = "https://github.com/free-audio/clap/archive/refs/tags/1.2.2.tar.gz",
-            .hash = "N-V-__8AAIjdOgBPVzcBxmBbs85PGMKnzh_jvnL6ZD5Z6gnk",
-            .lazy = true,
-        },
-        .pugl = .{
-            .url = "https://github.com/bandithedoge/pugl.zig/archive/769d44e8934cc2f43c1f571674ce52262ea336a5.tar.gz",
-            .hash = "pugl-0.1.0-CUvtTmtKAQCNUMx7feJODPSow_ffYyPCTecSavxnLEt7",
+            .hash = "12204f573701c6605bb3ce4f18c2a7ce1fe3be72fa643e59ea09e46b70c9131a3479",
             .lazy = true,
         },
     },
