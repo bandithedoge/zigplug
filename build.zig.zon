@@ -5,8 +5,8 @@
 
     .dependencies = .{
         .clap = .{
-            .url = "https://github.com/free-audio/clap/archive/refs/tags/1.2.2.tar.gz",
-            .hash = "12204f573701c6605bb3ce4f18c2a7ce1fe3be72fa643e59ea09e46b70c9131a3479",
+            .url = "https://github.com/free-audio/clap/archive/refs/tags/1.2.6.tar.gz",
+            .hash = "1220f12a5c1eaea6e2065835f3729463be750dda06c19f4df99b848162e155954b56",
             .lazy = true,
         },
     },
