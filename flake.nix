@@ -19,16 +19,9 @@
         zig' = inputs.zig-overlay.packages.${system}.mach-latest;
       in {
         devShells.default = pkgs.mkShell {
-          packages = with pkgs; [
+          packages = [
             zig'
             zig'.zls
-
-            libGL
-            pixman
-            pkg-config
-            xorg.libX11
-            xorg.libXext
-            xorg.libXrender
           ];
         };
       };
