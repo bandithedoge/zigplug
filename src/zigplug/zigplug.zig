@@ -44,7 +44,7 @@ pub const Description = struct {
     url: [:0]const u8,
     version: [:0]const u8,
     description: [:0]const u8,
-    /// TODO: implement features
+    // TODO: implement features
     manual_url: ?[:0]const u8 = null,
     support_url: ?[:0]const u8 = null,
 
@@ -93,4 +93,8 @@ pub inline fn fieldInfoByIndex(comptime T: type, index: usize) std.builtin.Type.
 pub inline fn fieldByIndex(comptime T: type, ptr: *anyopaque, index: usize) *std.meta.fieldInfo(T, @enumFromInt(index)).type {
     const field = fieldInfoByIndex(T, index);
     return &@field(@as(*T, @ptrCast(@alignCast(ptr))), field.name);
+}
+
+comptime {
+    std.testing.refAllDeclsRecursive(@This());
 }

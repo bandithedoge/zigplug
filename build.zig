@@ -30,6 +30,18 @@ pub fn build(b: *std.Build) !void {
     const run_tests = b.addRunArtifact(tests);
     test_step.dependOn(&run_tests.step);
 
+    const docs_step = b.step("docs", "Build documentation");
+    const lib = b.addStaticLibrary(.{
+        .name = "zigplug",
+        .root_module = zigplug,
+    });
+    const install_docs = b.addInstallDirectory(.{
+        .source_dir = lib.getEmittedDocs(),
+        .install_dir = .prefix,
+        .install_subdir = "docs",
+    });
+    docs_step.dependOn(&install_docs.step);
+
     if (options.clap) {
         const clap_adapter = b.addModule("clap_adapter", .{
             .target = target,
@@ -59,6 +71,7 @@ pub fn build(b: *std.Build) !void {
     }
 }
 
+// TODO: rethink entire build system
 pub const PluginBuilder = struct {
     object: *std.Build.Step.Compile,
     zigplug: *std.Build.Dependency,
