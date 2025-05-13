@@ -1,97 +1,119 @@
 // TODO: enum parameters
+// TODO: special bypass parameter
+
+const zigplug = @import("zigplug.zig");
 
 const std = @import("std");
 
-pub const ParameterType = union(enum) {
-    float: f32,
-    int: i32,
-    uint: u32,
-    bool: bool,
-
-    pub fn toFloat(self: *const ParameterType) f64 {
-        return switch (self.*) {
-            .float => self.float,
-            .int => @floatFromInt(self.int),
-            .uint => @floatFromInt(self.uint),
-            .bool => if (self.bool) 1.0 else 0.0,
-        };
-    }
-
-    pub fn fromFloat(self: *ParameterType, value: f64) void {
-        switch (self.*) {
-            .float => {
-                self.float = @floatCast(value);
-            },
-            .int => {
-                self.int = @intFromFloat(value);
-            },
-            .uint => {
-                self.uint = @intFromFloat(value);
-            },
-            .bool => {
-                self.bool = value == 1.0;
-            },
-        }
-    }
-
-    pub fn print(self: *const ParameterType, allocator: std.mem.Allocator) ![:0]const u8 {
-        return switch (self.*) {
-            .float => std.fmt.allocPrintZ(allocator, "{d}", .{self.float}),
-            .int => std.fmt.allocPrintZ(allocator, "{d}", .{self.int}),
-            .uint => std.fmt.allocPrintZ(allocator, "{d}", .{self.int}),
-            .bool => if (self.bool) "true" else "false",
-        };
-    }
-};
-
-/// do not create this directly, use the `makeParam()` function
-pub const Parameter = struct {
-    name: [:0]const u8,
-    default: ParameterType,
-    min: ParameterType,
-    max: ParameterType,
-    unit: ?[:0]const u8 = null,
-
-    /// do not modify directly, use `set()` and `get()` to handle types properly
-    value: ParameterType = .{ .float = 0.0 },
-    changed: bool = false,
-
-    main_changed: bool = false,
-    main_value: ParameterType = undefined,
-
-    pub fn set(self: *Parameter, val: ParameterType) void {
-        self.value = val;
-    }
-
-    pub fn get(self: *const Parameter) ParameterType {
-        return self.value;
-    }
-};
-
-pub const Options = struct {
-    name: [:0]const u8,
-    min: ?ParameterType = null,
-    max: ?ParameterType = null,
-    unit: ?[:0]const u8 = null,
-};
-
-pub fn makeParam(param_type: ParameterType, options: Options) Parameter {
-    return .{
-        .value = param_type,
-        .name = options.name,
-        .unit = options.unit,
-        .default = param_type,
-        .min = options.min orelse switch (param_type) {
-            .float => .{ .float = 0.0 },
-            .int => .{ .int = 0 },
-            .uint => .{ .uint = 0 },
-            .bool => .{ .bool = false },
+fn Options(comptime T: type) type {
+    return struct {
+        /// Human-readable, "pretty" name to be displayed by the host or plugin GUI
+        name: [:0]const u8,
+        /// Parameter will be initialized with this value
+        default: T,
+        /// This is not a hard limit, a misbehaving host or plugin GUI may end up setting your parameter value beyond these bounds. This is checked by default in debug builds
+        // TODO: actually check this condition
+        min: ?T = switch (@typeInfo(T)) {
+            .bool => false,
+            .@"enum" => 0,
+            else => null,
         },
-        .max = options.max orelse switch (param_type) {
-            .float => .{ .float = 1.0 },
-            .int => .{ .int = 1 },
-            .uint => .{ .uint = 1 },
-            .bool => .{ .bool = true },
+        /// This is not a hard limit, a misbehaving host or plugin GUI may end up setting your parameter value beyond these bounds. This is checked by default in debug builds
+        max: ?T = switch (@typeInfo(T)) {
+            .bool => true,
+            .@"enum" => |t| t.fields.len - 1,
+            else => null,
         },
+        automatable: bool = true,
+        /// Whether this value increments by integer values
+        stepped: bool = switch (@typeInfo(T)) {
+            .int, .@"enum", .bool => true,
+            else => false,
+        },
+        /// Optional unit appended to formatted values preceded by a whitespace
+        unit: ?[:0]const u8 = null,
+
+        /// Convert a float value to your parameter's type. If null, a generic implementation for primitive types is used
+        fromFloat: ?*const fn (f64) T = null,
+        /// Convert a value of your parameter's type to a float. If null, a generic implementation for primitive types is used
+        toFloat: ?*const fn (T) f64 = null,
+        /// Pretty-print a value of your parameter's type. If null, a generic implementation with `std.fmt.allocPrint` is used
+        format: ?*const fn (T, std.mem.Allocator) []const u8 = null,
+        // TODO: parse function
     };
+}
+
+pub fn Parameter(
+    comptime T: type,
+    options: Options(T),
+) type {
+    return struct {
+        pub const default = options.default;
+        pub const min = options.min orelse @compileError("Must specify minimum value for type " ++ @typeName(T));
+        pub const max = options.max orelse @compileError("Must specify maximum value for type " ++ @typeName(T));
+        pub const name = options.name;
+        pub const stepped = options.stepped;
+        pub const unit = options.unit;
+
+        /// do not modify directly, use `set()` and `get()`
+        value: std.atomic.Value(T) = .init(options.default),
+
+        pub fn set(self: *@This(), value: T) void {
+            zigplug.log.debug("param '{s}' = {}", .{name, value});
+            self.value.store(value, .unordered);
+        }
+
+        pub fn get(self: *const @This()) T {
+            return self.value.load(.unordered);
+        }
+
+        pub fn fromFloat(value: f64) T {
+            return if (options.fromFloat) |f| f(value) else genericFromFloat(value, T);
+        }
+
+        pub fn toFloat(value: T) f64 {
+            return if (options.toFloat) |f| f(value) else genericToFloat(value);
+        }
+
+        pub fn setFloat(self: *@This(), value: f64) void {
+            self.set(fromFloat(value));
+        }
+
+        pub fn getFloat(self: *const @This()) f64 {
+            return toFloat(self.get());
+        }
+
+        pub fn print(self: *const @This(), allocator: std.mem.Allocator) []const u8 {
+            return if (options.format) |f| f(self.get, allocator) else genericPrint(self.get(), allocator);
+        }
+
+        pub fn cast(ptr: *anyopaque) *@This() {
+            return @ptrCast(@alignCast(ptr));
+        }
+    };
+}
+
+pub fn genericFromFloat(value: f64, comptime T: type) T {
+    return switch (@typeInfo(T)) {
+        .float => @floatCast(value),
+        .int => @intFromFloat(value),
+        .bool => value == 1,
+        else => @compileError("fromFloat must be implemented for type " ++ @typeName(T)),
+    };
+}
+
+pub fn genericToFloat(value: anytype) @TypeOf(value) {
+    return switch (@typeInfo(@TypeOf(value))) {
+        .float => @floatCast(value),
+        .int => @floatFromInt(value),
+        .bool => if (value) 1 else 0,
+        else => @compileError("toFloat must be implemented for type " ++ @typeName(@TypeOf(value))),
+    };
+}
+
+pub fn genericPrint(value: anytype, allocator: std.mem.Allocator) []const u8 {
+    return std.fmt.allocPrint(allocator, switch (@typeInfo(@TypeOf(value))) {
+        .float => "{d}",
+        else => "{}",
+    }, .{value});
 }

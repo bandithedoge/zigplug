@@ -1,137 +1,77 @@
-const std = @import("std");
-const zigplug = @import("zigplug");
-const clap = @import("clap_adapter");
+//! https://github.com/free-audio/clap/blob/main/include/clap/ext/params.h
+
 const c = @import("clap_c");
+const clap = @import("clap_adapter");
+const zigplug = @import("zigplug");
 
-const events = @import("../events.zig");
+const std = @import("std");
 
-pub fn Parameters(comptime Plugin: type) *const c.clap_plugin_params_t {
+pub fn getExtension(comptime Plugin: type) *const c.clap_plugin_params_t {
+    std.debug.assert(Plugin.desc.Parameters != null);
     const parameters = struct {
         pub fn count(clap_plugin: [*c]const c.clap_plugin_t) callconv(.c) u32 {
-            const data = clap.Data.cast(clap_plugin);
-
-            std.debug.assert(Plugin.desc.Parameters != null);
-            std.debug.assert(@typeInfo(Plugin.desc.Parameters.?) == .@"enum");
-
-            data.plugin_data.param_lock.lock();
-            defer data.plugin_data.param_lock.unlock();
-
-            data.plugin_data.parameters = std.ArrayList(zigplug.parameters.Parameter).init(data.plugin.allocator);
-
-            return @typeInfo(Plugin.desc.Parameters.?).@"enum".fields.len;
+            _ = clap_plugin; // autofix
+            return std.meta.fields(Plugin.desc.Parameters.?).len;
         }
 
-        pub fn get_info(clap_plugin: [*c]const c.clap_plugin_t, index: u32, info: [*c]c.clap_param_info_t) callconv(.c) bool {
-            const data = clap.Data.cast(clap_plugin);
+        pub fn getInfo(clap_plugin: [*c]const c.clap_plugin_t, index: u32, info: [*c]c.clap_param_info_t) callconv(.c) bool {
+            _ = clap_plugin; // autofix
+            const param = zigplug.fieldInfoByIndex(Plugin.desc.Parameters.?, index);
 
-            if (index >= @typeInfo(Plugin.desc.Parameters.?).@"enum".fields.len)
-                return false;
-
-            // const param = plugin.callbacks.setupParameter.?(plugin.Parameters.?, index);
-            const param = Plugin.desc.Parameters.?.setup(@enumFromInt(index));
-
-            info.*.id = index;
-            info.*.min_value = param.min.toFloat();
-            info.*.max_value = param.max.toFloat();
-            info.*.default_value = param.default.toFloat();
-
-            info.*.flags = switch (param.value) {
-                .uint, .int, .bool => c.CLAP_PARAM_IS_STEPPED,
-                else => 0,
+            info.?.* = .{
+                .id = index,
+                .default_value = param.type.toFloat(param.type.default),
+                .min_value = param.type.toFloat(param.type.min),
+                .max_value = param.type.toFloat(param.type.max),
             };
 
-            std.mem.copyBackwards(u8, &info.*.name, param.name);
-
-            data.plugin_data.param_lock.lock();
-            defer data.plugin_data.param_lock.unlock();
-
-            data.plugin_data.parameters.insert(index, param) catch unreachable;
+            std.mem.copyForwards(u8, &info.?.*.name, param.type.name);
 
             return true;
         }
 
-        pub fn get_value(clap_plugin: [*c]const c.clap_plugin_t, id: c.clap_id, value: [*c]f64) callconv(.c) bool {
+        pub fn getValue(clap_plugin: [*c]const c.clap_plugin_t, id: c.clap_id, out: [*c]f64) callconv(.c) bool {
+            std.debug.assert(id < std.meta.fields(Plugin.desc.Parameters.?).len);
+
             const data = clap.Data.cast(clap_plugin);
-
-            if (id >= @typeInfo(Plugin.desc.Parameters.?).@"enum".fields.len)
-                return false;
-
-            data.plugin_data.param_lock.lock();
-            defer data.plugin_data.param_lock.unlock();
-
-            const param = &data.plugin_data.parameters.items[id];
-
-            value.* = if (param.main_changed) param.main_value.toFloat() else param.get().toFloat();
+            out.?.* = zigplug.fieldByIndex(Plugin.desc.Parameters.?, data.parameters.?, id).getFloat();
 
             return true;
         }
 
-        pub fn value_to_text(clap_plugin: [*c]const c.clap_plugin_t, id: c.clap_id, value: f64, display: [*c]u8, size: u32) callconv(.c) bool {
-            const data = clap.Data.cast(clap_plugin);
-
-            var param = data.plugin_data.parameters.items[id];
-            param.value.fromFloat(value);
-
-            const result = param.value.print(data.plugin.allocator) catch {
-                zigplug.log.err("formatting parameter value failed: {}", .{value});
-                return false;
-            };
-
-            std.mem.copyBackwards(
-                u8,
-                display[0..size],
-                if (param.unit) |unit|
-                    std.fmt.allocPrintZ(data.plugin.allocator, "{s} {s}", .{ result, unit }) catch {
-                        return false;
-                    }
-                else
-                    result,
-            );
-
+        // TODO
+        pub fn valueToText(clap_plugin: [*c]const c.clap_plugin_t, id: c.clap_id, value: f64, out: [*c]u8, out_capacity: u32) callconv(.c) bool {
+            _ = out_capacity; // autofix
+            _ = out; // autofix
+            _ = value; // autofix
+            _ = id; // autofix
+            _ = clap_plugin; // autofix
             return true;
         }
 
-        pub fn text_to_value(clap_plugin: [*c]const c.clap_plugin_t, id: c.clap_id, display: [*c]const u8, value: [*c]f64) callconv(.c) bool {
-            const data = clap.Data.cast(clap_plugin);
-
-            var param = data.plugin_data.parameters.items[id];
-            const src = std.mem.span(display);
-
-            param.value = (switch (param.value) {
-                .float => .{ .float = std.fmt.parseFloat(f32, src) catch {
-                    return false;
-                } },
-                .int => .{ .int = std.fmt.parseInt(i32, src, 10) catch {
-                    return false;
-                } },
-                .uint => .{ .uint = std.fmt.parseUnsigned(u32, src, 10) catch {
-                    return false;
-                } },
-                .bool => .{ .bool = std.mem.eql(u8, src, "true") },
-            });
-
-            value.* = param.value.toFloat();
-
+        // TODO
+        pub fn textToValue(clap_plugin: [*c]const c.clap_plugin_t, id: c.clap_id, value_text: [*c]const u8, out: [*c]f64) callconv(.c) bool {
+            _ = out; // autofix
+            _ = value_text; // autofix
+            _ = id; // autofix
+            _ = clap_plugin; // autofix
             return true;
         }
 
+        // TODO
         pub fn flush(clap_plugin: [*c]const c.clap_plugin_t, in: [*c]const c.clap_input_events_t, out: [*c]const c.clap_output_events_t) callconv(.c) void {
-            const data = clap.Data.cast(clap_plugin);
-
-            events.syncMainToAudio(Plugin, data, out);
-
-            for (0..in.*.size.?(in)) |i| {
-                events.processEvent(Plugin, clap_plugin, in.*.get.?(in, @intCast(i)));
-            }
+            _ = out; // autofix
+            _ = in; // autofix
+            _ = clap_plugin; // autofix
         }
     };
 
     return &.{
         .count = parameters.count,
-        .get_info = parameters.get_info,
-        .get_value = parameters.get_value,
-        .value_to_text = parameters.value_to_text,
-        .text_to_value = parameters.text_to_value,
+        .get_info = parameters.getInfo,
+        .get_value = parameters.getValue,
+        .value_to_text = parameters.valueToText,
+        .text_to_value = parameters.textToValue,
         .flush = parameters.flush,
     };
 }

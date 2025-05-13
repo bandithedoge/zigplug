@@ -1,7 +1,7 @@
 const std = @import("std");
 pub const parameters = @import("parameters.zig");
 
-pub const Feature = enum { instrument, effect, note_effect, note_detector, analyzer, synthesizer, sampler, drum, drum_machine, filter, phaser, equalizer, deesser, phase_vocoder, granular, frequency_shifter, pitch_shifter, distortion, transient_shaper, compressor, expander, gate, limiter, flanger, chorus, delay, reverb, tremolo, glitch, utility, pitch_correction, restoration, multi_effects, mixing, mastering, mono, stereo, surround, ambisonic };
+pub const log = std.log.scoped(.zigplug);
 
 pub const Port = struct {
     name: [:0]const u8, // TODO: make this optional
@@ -9,11 +9,12 @@ pub const Port = struct {
 };
 
 pub const ProcessBlock = struct {
-    // TODO: use slices here
     in: []const []const []const f32,
     out: [][][]f32,
     samples: usize,
     sample_rate: u32,
+    // TODO: the user shouldn't have to cast this themselves
+    parameters: ?*anyopaque,
 };
 
 pub const ProcessStatus = enum {
@@ -22,10 +23,9 @@ pub const ProcessStatus = enum {
 };
 
 pub const PluginData = struct {
-    /// hz
+    /// Hz
     sample_rate: u32,
-    param_lock: std.Thread.Mutex,
-    parameters: std.ArrayList(parameters.Parameter),
+    plugin: Plugin,
 
     pub fn cast(ptr: ?*anyopaque) *PluginData {
         return @ptrCast(@alignCast(ptr));
@@ -45,7 +45,6 @@ pub const Description = struct {
     version: [:0]const u8,
     description: [:0]const u8,
     /// TODO: implement features
-    features: []const Feature,
     manual_url: ?[:0]const u8 = null,
     support_url: ?[:0]const u8 = null,
 
@@ -54,9 +53,10 @@ pub const Description = struct {
     Parameters: ?type = null,
 };
 
+// TODO: make descriptor a member here
 pub const Plugin = struct {
     const Callbacks = struct {
-        init: *const fn () *anyopaque,
+        init: *const fn () anyerror!*anyopaque,
         deinit: *const fn (*anyopaque) void,
         process: *const fn (*anyopaque, ProcessBlock) anyerror!void,
     };
@@ -69,26 +69,28 @@ pub const Plugin = struct {
     allocator: std.mem.Allocator,
     callbacks: Callbacks,
 
-    pub fn new(options: Options, callbacks: Callbacks) Plugin {
-        const ptr = callbacks.init();
+    pub fn new(options: Options, callbacks: Callbacks) !Plugin {
         return .{
-            .ptr = ptr,
+            .ptr = try callbacks.init(),
             .allocator = options.allocator,
             .callbacks = callbacks,
         };
     }
 
-    pub fn deinit(self: *Plugin) void {
+    pub inline fn deinit(self: *Plugin) void {
         self.callbacks.deinit(self.ptr);
     }
 
-    pub fn process(self: *Plugin, block: ProcessBlock) !void {
+    pub inline fn process(self: *Plugin, block: ProcessBlock) !void {
         try self.callbacks.process(self.ptr, block);
     }
 };
 
-pub const log = std.log.scoped(.zigplug);
+pub inline fn fieldInfoByIndex(comptime T: type, index: usize) std.builtin.Type.StructField {
+    return std.meta.fieldInfo(T, @enumFromInt(index));
+}
 
-comptime {
-    std.testing.refAllDeclsRecursive(@This());
+pub inline fn fieldByIndex(comptime T: type, ptr: *anyopaque, index: usize) *std.meta.fieldInfo(T, @enumFromInt(index)).type {
+    const field = fieldInfoByIndex(T, index);
+    return &@field(@as(*T, @ptrCast(@alignCast(ptr))), field.name);
 }

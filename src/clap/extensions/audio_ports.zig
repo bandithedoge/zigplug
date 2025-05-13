@@ -2,7 +2,7 @@ const std = @import("std");
 const zigplug = @import("zigplug");
 const c = @import("clap_c");
 
-pub fn AudioPorts(comptime Plugin: type) *const c.clap_plugin_audio_ports_t {
+pub fn getExtension(comptime Plugin: type) *const c.clap_plugin_audio_ports_t {
     const audio_ports = struct {
         pub fn count(clap_plugin: [*c]const c.clap_plugin_t, is_input: bool) callconv(.c) u32 {
             _ = clap_plugin; // autofix

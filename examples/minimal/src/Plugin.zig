@@ -3,6 +3,16 @@ const zigplug = @import("zigplug");
 
 var gpa = std.heap.GeneralPurposeAllocator(.{}).init;
 
+const Parameters = struct {
+    gain: zigplug.parameters.Parameter(f32, .{
+        .name = "Gain",
+        .default = 0,
+        .min = -96,
+        .max = 24,
+        .unit = "db",
+    }),
+};
+
 pub const desc: zigplug.Description = .{
     .id = "com.bandithedoge.zigplug_minimal_example",
     .name = "zigplug minimal",
@@ -10,8 +20,6 @@ pub const desc: zigplug.Description = .{
     .url = "https://bandithedoge.com/zigplug",
     .version = "0.1.0",
     .description = "A zigplug example",
-    .features = &.{},
-
     .ports = .{
         .in = &.{.{
             .name = "in",
@@ -22,28 +30,11 @@ pub const desc: zigplug.Description = .{
             .channels = 2,
         }},
     },
-
-    .Parameters = enum {
-        gain,
-
-        pub fn setup(self: @This()) zigplug.parameters.Parameter {
-            return switch (self) {
-                .gain => zigplug.parameters.makeParam(
-                    .{ .float = 0 },
-                    .{
-                        .max = .{ .float = 0 },
-                        .min = .{ .float = -100 },
-                        .name = "Gain",
-                        .unit = "db",
-                    },
-                ),
-            };
-        }
-    },
+    .Parameters = Parameters,
 };
 
-pub fn plugin() zigplug.Plugin {
-    return zigplug.Plugin.new(
+pub fn plugin() !zigplug.Plugin {
+    return try zigplug.Plugin.new(
         .{
             .allocator = gpa.allocator(),
         },
@@ -68,11 +59,13 @@ fn deinit(self: *@This()) void {
 
 fn process(self: *@This(), block: zigplug.ProcessBlock) !void {
     _ = self;
+    const parameters: *const Parameters = @ptrCast(@alignCast(block.parameters));
+    const amplitude = std.math.pow(f32, 2, parameters.gain.get() / 6);
 
     for (block.in, 0..) |in, block_i| {
         for (in, 0..) |channel, channel_i| {
-            for (0..block.samples) |sample|
-                block.out[block_i][channel_i][sample] = channel[sample] * 0.5;
+            for (channel, 0..block.samples) |input, sample|
+                block.out[block_i][channel_i][sample] = input * amplitude;
         }
     }
 }
