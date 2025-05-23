@@ -20,13 +20,16 @@ pub const Data = struct {
     }
 };
 
-fn processEvent(comptime Plugin: type, clap_plugin: *const c.clap_plugin_t, event: *const c.clap_event_header_t) void {
+pub fn processEvent(comptime Plugin: type, clap_plugin: *const c.clap_plugin_t, event: *const c.clap_event_header_t) void {
     const data = Data.cast(clap_plugin);
     switch (event.type) {
         c.CLAP_EVENT_PARAM_VALUE => {
-            const value_event: *const c.clap_event_param_value = @ptrCast(@alignCast(event));
-            zigplug.fieldByIndex(Plugin.desc.Parameters.?, data.parameters.?, value_event.param_id).setFloat(value_event.value);
             std.debug.assert(Plugin.desc.Parameters != null);
+
+            const value_event: *const c.clap_event_param_value = @ptrCast(@alignCast(event));
+            const param = zigplug.fieldByIndex(Plugin.desc.Parameters.?, data.parameters.?, value_event.param_id);
+
+            param.setFloat(value_event.value);
         },
         else => {},
     }
