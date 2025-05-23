@@ -1,6 +1,7 @@
 .{
     .name = "zigplug",
     .version = "0.0.0",
+    .mach_zig_version = "2024.11.0-mach",
     .minimum_zig_version = "0.14.0-dev.2577+271452d22",
 
     .dependencies = .{
@@ -14,6 +15,6 @@
         "src",
         "build.zig",
         "build.zig.zon",
-        "README.md",
+        "LICENSE",
     },
 }
