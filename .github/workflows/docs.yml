@@ -13,8 +13,18 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install Nix
-        uses: DeterminateSystems/nix-installer-action@main
+      - name: Install Lix
+        uses: canidae-solutions/lix-quick-install-action@v3
+        with:
+          lix_conf: |
+            keep-env-derivations = true
+            keep-outputs = true
+
+      - name: Cache Nix store
+        uses: nix-community/cache-nix-action@v6
+        with:
+          primary-key: nix-${{ runner.os }}
+          gc-max-store-size: 5G
 
       - name: Setup Nix cache
         uses: cachix/cachix-action@v16
