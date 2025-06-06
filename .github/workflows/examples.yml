@@ -10,28 +10,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install Lix
-        uses: canidae-solutions/lix-quick-install-action@v3
-        with:
-          lix_conf: |
-            keep-env-derivations = true
-            keep-outputs = true
-
-      - name: Cache Nix store
-        uses: nix-community/cache-nix-action@v6
-        with:
-          primary-key: nix-${{ runner.os }}
-          gc-max-store-size: 5G
-
-      - name: Setup Nix cache
-        uses: cachix/cachix-action@v16
-        with:
-          name: zigplug
-          authToken: "${{ secrets.CACHIX_AUTH_TOKEN }}"
+      - name: Setup Zig
+        uses: mlugg/setup-zig@v2
 
       - name: Build examples
         run: |
           for example in $(find $(realpath ..) -path "*/zigplug/examples/*/build.zig"); do
             cd $(dirname $example)
-            nix develop -c zig build
+            zig build
           done
