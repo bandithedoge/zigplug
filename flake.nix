@@ -26,4 +26,9 @@
         };
       };
     };
+
+  nixConfig = {
+    extra-substituters = ["https://zigplug.cachix.org"];
+    extra-trusted-public-keys = ["zigplug.cachix.org-1:RQ1LcVcTwuhlNt0P39IBG46qRfMdPR3WS1Rm7SUu8rw="];
+  };
 }

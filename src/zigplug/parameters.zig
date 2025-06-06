@@ -1,5 +1,3 @@
-// TODO: special bypass parameter
-
 const zigplug = @import("zigplug.zig");
 
 const std = @import("std");
@@ -10,400 +8,222 @@ fn Options(comptime T: type) type {
         name: [:0]const u8,
         /// Parameter will be initialized with this value
         default: T,
-        /// This is not a hard limit, a misbehaving host or plugin GUI may end up setting your parameter value beyond these bounds. This is checked by default in debug builds
-        min: ?T = switch (@typeInfo(T)) {
-            .bool => false,
-            .@"enum" => 0,
-            else => null,
-        },
-        /// This is not a hard limit, a misbehaving host or plugin GUI may end up setting your parameter value beyond these bounds. This is checked by default in debug builds
-        max: ?T = switch (@typeInfo(T)) {
-            .bool => true,
-            .@"enum" => |t| t.fields.len - 1,
-            else => null,
-        },
+        // TODO: this should automatically be set for booleans and enums
+        /// This is not a hard limit, a misbehaving host or plugin GUI may end up setting your parameter value beyond these bounds
+        min: T,
+        /// This is not a hard limit, a misbehaving host or plugin GUI may end up setting your parameter value beyond these bounds
+        max: T,
         automatable: bool = true,
         /// Whether this value increments by integer values
         stepped: bool = switch (@typeInfo(T)) {
-            .int, .@"enum", .bool => true,
+            .int, .bool => true,
             else => false,
         },
-        /// Optional unit appended to formatted values preceded by a whitespace
-        unit: ?[:0]const u8 = null,
+        /// Optional unit appended to formatted values, possibly preceded by a whitespace
+        unit: ?[]const u8 = null,
+        /// Some parameters such as bypass get special treatment. See `parameters.Bypass`
+        special: ?enum { bypass } = null,
 
-        /// Convert a float value to your parameter's type. If null, a generic implementation for primitive types is used
-        fromFloat: ?*const fn (value: f64) T = null,
-        /// Convert a value of your parameter's type to a float. If null, a generic implementation for primitive types is used
-        toFloat: ?*const fn (value: T) f64 = null,
-        /// Pretty-print a value of your parameter's type. If null, a generic implementation with `std.fmt.allocPrint` is used
         format: ?*const fn (allocator: std.mem.Allocator, value: T, unit: ?[]const u8) anyerror![]const u8 = null,
-        /// Read a value from a string. If null, a generic implementation for primitive types is used
         parse: ?*const fn (value: []const u8, unit: ?[]const u8) anyerror!T = null,
     };
 }
 
-pub fn Parameter(
-    comptime T: type,
-    options: Options(T),
-) type {
-    return struct {
-        pub const Type = T;
-        pub const default = options.default;
-        pub const min = options.min orelse @compileError("Must specify minimum value for type " ++ @typeName(T));
-        pub const max = options.max orelse @compileError("Must specify maximum value for type " ++ @typeName(T));
-        pub const name = options.name;
-        pub const stepped = options.stepped;
-        pub const unit = options.unit;
+// TODO: enum parameters
 
-        /// do not modify directly, use `set()` and `get()`
-        value: std.atomic.Value(T) = .init(options.default),
+const ParameterType = enum { float, int, uint, bool };
 
-        pub fn set(self: *@This(), value: T) void {
-            zigplug.log.debug("param '{s}' = {any}", .{ name, value });
-            std.debug.assert(value >= min);
-            std.debug.assert(value <= max);
-            self.value.store(value, .unordered);
-        }
+pub const Parameter = union(ParameterType) {
+    fn Inner(comptime T: type) type {
+        return struct {
+            value: std.atomic.Value(T),
+            options: Options(T),
 
-        pub fn get(self: *const @This()) T {
-            return self.value.load(.unordered);
-        }
+            pub fn init(comptime options: Options(T)) @This() {
+                if (options.special == .bypass)
+                    switch (@typeInfo(T)) {
+                        .bool => {},
+                        else => @panic("Bypass parameter type must be bool"),
+                    };
 
-        pub fn fromFloat(value: f64) T {
-            return if (options.fromFloat) |f| f(value) else genericFromFloat(value, T);
-        }
+                return .{
+                    .value = .init(options.default),
+                    .options = options,
+                };
+            }
 
-        pub fn toFloat(value: T) f64 {
-            return if (options.toFloat) |f| f(value) else genericToFloat(value);
-        }
+            pub fn set(self: *@This(), value: T) void {
+                self.value.store(value, .unordered);
+            }
 
-        pub fn setFloat(self: *@This(), value: f64) void {
-            self.set(fromFloat(value));
-        }
+            pub fn get(self: *const @This()) T {
+                return self.value.load(.unordered);
+            }
 
-        pub fn getFloat(self: *const @This()) f64 {
-            return toFloat(self.get());
-        }
+            pub fn fromFloat(value: f64) T {
+                return switch (@typeInfo(T)) {
+                    .float => @floatCast(value),
+                    .int => @intFromFloat(value),
+                    .bool => value == 1,
+                    else => unreachable,
+                };
+            }
 
-        pub fn format(allocator: std.mem.Allocator, value: T) ![]const u8 {
-            const f = options.format orelse genericFormat;
-            return f(allocator, value, unit);
-        }
+            pub fn toFloat(value: T) f64 {
+                return switch (@typeInfo(@TypeOf(value))) {
+                    .float => @floatCast(value),
+                    .int => @floatFromInt(value),
+                    .bool => if (value) 1 else 0,
+                    else => unreachable,
+                };
+            }
 
-        pub fn parse(value: []const u8) !T {
-            return if (options.parse) |f|
-                f(value, unit)
-            else
-                genericParse(T, unit, value);
-        }
+            pub fn format(self: *const @This(), allocator: std.mem.Allocator, value: T) ![]const u8 {
+                if (self.options.format) |f|
+                    return f(allocator, value, self.options.unit);
 
-        pub fn cast(ptr: *anyopaque) *@This() {
-            return @ptrCast(@alignCast(ptr));
-        }
-    };
-}
+                const fmt_string = comptime switch (@typeInfo(@TypeOf(value))) {
+                    .float, .comptime_float => "{d}",
+                    else => "{}",
+                };
 
-pub fn genericFromFloat(value: f64, comptime T: type) T {
-    return switch (@typeInfo(T)) {
-        .float => @floatCast(value),
-        .int => @intFromFloat(value),
-        .bool => value == 1,
-        else => @compileError("fromFloat must be implemented for type " ++ @typeName(T)),
-    };
-}
+                return if (self.options.unit) |unit|
+                    std.fmt.allocPrint(allocator, fmt_string ++ "{s}", .{ value, unit })
+                else
+                    std.fmt.allocPrint(allocator, fmt_string, .{value});
+            }
 
-pub fn genericToFloat(value: anytype) @TypeOf(value) {
-    return switch (@typeInfo(@TypeOf(value))) {
-        .float => @floatCast(value),
-        .int => @floatFromInt(value),
-        .bool => if (value) 1 else 0,
-        else => @compileError("toFloat must be implemented for type " ++ @typeName(@TypeOf(value))),
-    };
-}
+            pub fn parse(self: *const @This(), value: []const u8) !T {
+                if (self.options.parse) |f|
+                    return f(value, self.options.unit);
 
-pub fn genericFormat(allocator: std.mem.Allocator, value: anytype, comptime unit: ?[]const u8) std.fmt.AllocPrintError![]const u8 {
-    const fmt_string = comptime switch (@typeInfo(@TypeOf(value))) {
-        .float, .comptime_float => "{d}",
-        .pointer, .@"enum" => "{s}",
-        else => "{any}",
-    };
+                const str = if (self.options.unit) |u|
+                    std.mem.trimRight(u8, value, u)
+                else
+                    value;
 
-    const fmt_value = comptime switch (@typeInfo(@TypeOf(value))) {
-        .@"enum" => @tagName(value),
-        else => value,
-    };
+                return switch (comptime @typeInfo(T)) {
+                    .float => std.fmt.parseFloat(T, str),
+                    .int => |t| try (switch (t.signedness) {
+                        .signed => std.fmt.parseInt,
+                        .unsigned => std.fmt.parseUnsigned,
+                    })(T, str, 10),
+                    .bool => std.mem.eql(u8, str, "true"),
+                    else => unreachable,
+                };
+            }
+        };
+    }
 
-    return std.fmt.allocPrint(
-        allocator,
-        if (unit) |u| fmt_string ++ u else fmt_string,
-        .{fmt_value},
-    );
-}
+    float: Inner(f64),
+    int: Inner(i64),
+    uint: Inner(u64),
+    bool: Inner(bool),
+};
 
-test genericFormat {
+// TODO: fuzz testing parameter values
+test Parameter {
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
-    const allocator = arena.allocator();
     defer arena.deinit();
+    const allocator = arena.allocator();
 
-    // float
-    try std.testing.expectEqualStrings(
-        "1.5",
-        try genericFormat(allocator, null, 1.5),
-    );
-    try std.testing.expectStringStartsWith(
-        try genericFormat(allocator, null, 1.0 / 3.0),
-        "0.3",
-    );
-
-    // int
-    try std.testing.expectEqualStrings(
-        "0",
-        try genericFormat(allocator, null, 0),
+    const float_param: Parameter = .{ .float = .init(.{
+        .name = "Float parameter",
+        .default = 0,
+        .min = -1,
+        .max = 1,
+    }) };
+    try std.testing.expectEqual(
+        float_param.float.get(),
+        try float_param.float.parse(try float_param.float.format(allocator, float_param.float.get())),
     );
 
-    // bool
-    try std.testing.expectEqualStrings(
-        "true",
-        try genericFormat(allocator, null, true),
-    );
-    try std.testing.expectEqualStrings(
-        "false",
-        try genericFormat(allocator, null, false),
-    );
-
-    // string
-    try std.testing.expectEqualStrings(
-        "test",
-        try genericFormat(allocator, null, "test"),
+    const int_param: Parameter = .{ .int = .init(.{
+        .name = "Integer parameter",
+        .default = 0,
+        .min = -100,
+        .max = 100,
+    }) };
+    try std.testing.expectEqual(
+        int_param.int.get(),
+        try int_param.int.parse(try int_param.int.format(allocator, int_param.int.get())),
     );
 
-    // enum
-    const Enum = enum { field };
-    try std.testing.expectEqualStrings(
-        "field",
-        try genericFormat(allocator, null, Enum.field),
+    const uint_param: Parameter = .{ .uint = .init(.{
+        .name = "Unsigned integer parameter",
+        .default = 0,
+        .min = 0,
+        .max = 100,
+    }) };
+    try std.testing.expectEqual(
+        uint_param.uint.get(),
+        try uint_param.uint.parse(try uint_param.uint.format(allocator, uint_param.uint.get())),
     );
 
-    // with unit
-    try std.testing.expectEqualStrings(
-        "6db",
-        try genericFormat(allocator, "db", 6),
-    );
-    try std.testing.expectEqualStrings(
-        "44100Hz",
-        try genericFormat(allocator, "Hz", 44100),
+    const bool_param: Parameter = .{ .bool = .init(.{
+        .name = "Boolean parameter",
+        .default = false,
+        .min = false,
+        .max = true,
+    }) };
+    try std.testing.expectEqual(
+        bool_param.bool.get(),
+        try bool_param.bool.parse(try bool_param.bool.format(allocator, bool_param.bool.get())),
     );
 }
 
-pub fn genericParse(comptime T: type, unit: ?[]const u8, string: []const u8) !T {
-    const str = if (unit) |u|
-        std.mem.trimRight(u8, string, u)
-    else
-        string;
-
-    return switch (comptime @typeInfo(T)) {
-        .float => std.fmt.parseFloat(T, str),
-        .int => |t| try (switch (t.signedness) {
-            .signed => std.fmt.parseInt,
-            .unsigned => std.fmt.parseUnsigned,
-        })(T, str, 10),
-        .pointer => |t| if (t.child == u8) str else @compileError("parse must be implemented for type " ++ @typeName(T)),
-        .bool => std.mem.eql(u8, str, "true"),
-        .@"enum" => std.meta.stringToEnum(T, str) orelse error.FieldNotFound,
-        else => @compileError("parse must be implemented for type " ++ @typeName(T)),
-    };
-}
-
-test genericParse {
-    // float
-    try std.testing.expectEqual(
-        0.5,
-        try genericParse(f64, null, "0.5"),
-    );
-
-    // int
-    try std.testing.expectEqual(
-        0,
-        try genericParse(i32, null, "-0"),
-    );
-
-    // bool
-    try std.testing.expectEqual(
-        true,
-        try genericParse(bool, null, "true"),
-    );
-    try std.testing.expectEqual(
-        false,
-        try genericParse(bool, null, "false"),
-    );
-
-    // string
-    try std.testing.expectEqualStrings(
-        "string",
-        try genericParse([]const u8, null, "string"),
-    );
-
-    // enum
-    const Enum = enum { field };
-    try std.testing.expectEqual(
-        Enum.field,
-        try genericParse(Enum, null, "field"),
-    );
-
-    // with unit
-    try std.testing.expectEqual(
-        -6,
-        try genericParse(f64, "db", "-6db"),
-    );
-    try std.testing.expectEqual(
-        44100,
-        try genericParse(u32, "Hz", "44100Hz"),
-    );
-}
-
-test "genericFormat == genericParse" {
+test "unit and custom formatting" {
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
-    const allocator = arena.allocator();
     defer arena.deinit();
+    const allocator = arena.allocator();
 
-    // float
-    try std.testing.expectEqual(
-        0.5,
-        try genericParse(
-            f64,
-            null,
-            try genericFormat(allocator, null, 0.5),
-        ),
-    );
-    try std.testing.expectEqualStrings(
-        "0.5",
-        try genericFormat(
-            allocator,
-            null,
-            try genericParse(f64, null, "0.5"),
-        ),
-    );
+    var int_param = Parameter{
+        .int = .init(.{
+            .name = "Interval offset",
+            .default = 0,
+            .min = -(12 * 100 * 5), // -5 octaves
+            .max = 12 * 100 * 5, // +5 octaves
+            .unit = " c",
+            .format = struct {
+                pub fn f(ally: std.mem.Allocator, value: i64, unit: ?[]const u8) ![]const u8 {
+                    return std.fmt.allocPrint(ally, "{s}{}{s}", .{ switch (std.math.sign(value)) {
+                        -1, 0 => "",
+                        1 => "+",
+                        else => unreachable,
+                    }, value, unit.? });
+                }
+            }.f,
+            .parse = struct {
+                pub fn f(value: []const u8, unit: ?[]const u8) !i64 {
+                    return std.fmt.parseInt(
+                        i64,
+                        std.mem.trimRight(
+                            u8,
+                            std.mem.trimLeft(u8, std.mem.trimLeft(u8, value, "-"), "+"),
+                            unit.?,
+                        ),
+                        10,
+                    );
+                }
+            }.f,
+        }),
+    };
 
-    // int
-    try std.testing.expectEqual(
-        0,
-        try genericParse(
-            i32,
-            null,
-            try genericFormat(allocator, null, 0),
-        ),
-    );
-    try std.testing.expectEqualStrings(
-        "0",
-        try genericFormat(
-            allocator,
-            null,
-            try genericParse(i32, null, "0"),
-        ),
-    );
+    try std.testing.expectEqualStrings("0 c", try int_param.int.format(allocator, int_param.int.get()));
+    try std.testing.expectEqual(1200, try int_param.int.parse("1200 c"));
 
-    // bool
-    try std.testing.expectEqual(
-        true,
-        try genericParse(
-            bool,
-            null,
-            try genericFormat(allocator, null, true),
-        ),
-    );
-    try std.testing.expectEqualStrings(
-        "true",
-        try genericFormat(
-            allocator,
-            null,
-            try genericParse(bool, null, "true"),
-        ),
-    );
-    try std.testing.expectEqual(
-        false,
-        try genericParse(
-            bool,
-            null,
-            try genericFormat(allocator, null, false),
-        ),
-    );
-    try std.testing.expectEqualStrings(
-        "false",
-        try genericFormat(
-            allocator,
-            null,
-            try genericParse(bool, null, "false"),
-        ),
-    );
-
-    // string
-    try std.testing.expectEqualStrings(
-        "string",
-        try genericParse(
-            []const u8,
-            null,
-            try genericFormat(allocator, null, "string"),
-        ),
-    );
-    try std.testing.expectEqualStrings(
-        "string",
-        try genericFormat(
-            allocator,
-            null,
-            try genericParse([]const u8, null, "string"),
-        ),
-    );
-
-    // enum
-    const Enum = enum { field };
-    try std.testing.expectEqual(
-        Enum.field,
-        try genericParse(
-            Enum,
-            null,
-            try genericFormat(allocator, null, Enum.field),
-        ),
-    );
-    try std.testing.expectEqualStrings(
-        "field",
-        try genericFormat(
-            allocator,
-            null,
-            try genericParse(Enum, null, "field"),
-        ),
-    );
-
-    // with unit
-    try std.testing.expectEqual(
-        -6,
-        try genericParse(
-            f64,
-            "db",
-            try genericFormat(allocator, "db", -6),
-        ),
-    );
-    try std.testing.expectEqualStrings(
-        "-6db",
-        try genericFormat(
-            allocator,
-            "db",
-            try genericParse(f64, "db", "-6db"),
-        ),
-    );
-    try std.testing.expectEqual(
-        44100,
-        try genericParse(
-            u32,
-            "Hz",
-            try genericFormat(allocator, "Hz", 44100),
-        ),
-    );
-    try std.testing.expectEqualStrings(
-        "44100Hz",
-        try genericFormat(
-            allocator,
-            "Hz",
-            try genericParse(u32, "Hz", "44100Hz"),
-        ),
-    );
+    int_param.int.set(1200);
+    try std.testing.expectEqualStrings("+1200 c", try int_param.int.format(allocator, int_param.int.get()));
+    int_param.int.set(-1200);
+    try std.testing.expectEqualStrings("-1200 c", try int_param.int.format(allocator, int_param.int.get()));
 }
+
+/// In some plugin APIs the bypass parameter gets special treatment as it is merged with the host's bypass button.
+/// Create a boolean parameter with `parameters.Parameter` and set `.special = .bypass` if you want to customize the name and default value.
+pub const Bypass = Parameter{ .bool = .init(.{
+    .name = "Bypass",
+    .default = false,
+    .min = false,
+    .max = true,
+    .special = .bypass,
+}) };

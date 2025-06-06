@@ -1,5 +1,7 @@
 const std = @import("std");
+
 pub const parameters = @import("parameters.zig");
+pub const Parameter = parameters.Parameter;
 
 pub const log = std.log.scoped(.zigplug);
 
@@ -13,8 +15,19 @@ pub const ProcessBlock = struct {
     out: [][][]f32,
     samples: usize,
     sample_rate: u32,
-    // TODO: the user shouldn't have to cast this themselves
-    parameters: ?*anyopaque,
+    parameters: ?[]const Parameter,
+
+    pub fn getParam(self: *const ProcessBlock, param: anytype) *const Parameter {
+        switch (@typeInfo(@TypeOf(param))) {
+            .@"enum" => {
+                if (self.parameters) |params|
+                    return &params[@intFromEnum(param)];
+
+                @panic("getParam() was called but there are no parameters");
+            },
+            else => @compileError("getParam() must be called with an enum"),
+        }
+    }
 };
 
 pub const ProcessStatus = enum {
@@ -85,15 +98,6 @@ pub const Plugin = struct {
         try self.callbacks.process(self.ptr, block);
     }
 };
-
-pub inline fn fieldInfoByIndex(comptime T: type, index: usize) std.builtin.Type.StructField {
-    return std.meta.fieldInfo(T, @enumFromInt(index));
-}
-
-pub inline fn fieldByIndex(comptime T: type, ptr: *anyopaque, index: usize) *std.meta.fieldInfo(T, @enumFromInt(index)).type {
-    const field = fieldInfoByIndex(T, index);
-    return &@field(@as(*T, @ptrCast(@alignCast(ptr))), field.name);
-}
 
 comptime {
     std.testing.refAllDeclsRecursive(@This());

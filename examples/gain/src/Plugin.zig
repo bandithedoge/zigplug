@@ -1,16 +1,26 @@
 const std = @import("std");
+const builtin = @import("builtin");
+
 const zigplug = @import("zigplug");
 
 var gpa = std.heap.GeneralPurposeAllocator(.{}).init;
 
-const Parameters = struct {
-    gain: zigplug.parameters.Parameter(f32, .{
-        .name = "Gain",
-        .default = 0,
-        .min = -96,
-        .max = 24,
-        .unit = "db",
-    }),
+const Parameters = enum {
+    bypass,
+    gain,
+
+    pub fn setup(self: Parameters) zigplug.Parameter {
+        return switch (self) {
+            .bypass => zigplug.parameters.Bypass,
+            .gain => .{ .float = .init(.{
+                .name = "Gain",
+                .default = 0,
+                .min = -96,
+                .max = 24,
+                .unit = "db",
+            }) },
+        };
+    }
 };
 
 pub const desc: zigplug.Description = .{
@@ -54,15 +64,18 @@ fn init() !*@This() {
 
 fn deinit(self: *@This()) void {
     gpa.allocator().destroy(self);
-    // _ = gpa.deinit(); // FIXME: unreachable
 }
 
 fn process(self: *@This(), block: zigplug.ProcessBlock) !void {
     _ = self;
-    const parameters: *const Parameters = @ptrCast(@alignCast(block.parameters));
-    const amplitude = std.math.pow(f32, 2, parameters.gain.get() / 6);
+    const amplitude: f32 = @floatCast(std.math.pow(f64, 2, block.getParam(Parameters.gain).float.get() / 6));
 
-    for (block.in, 0..) |in, block_i| {
+    if (block.getParam(Parameters.bypass).bool.get()) {
+        for (block.in, 0..) |in, block_i| {
+            for (in, 0..) |channel, channel_i|
+                @memcpy(block.out[block_i][channel_i], channel);
+        }
+    } else for (block.in, 0..) |in, block_i| {
         for (in, 0..) |channel, channel_i| {
             for (channel, 0..block.samples) |input, sample|
                 block.out[block_i][channel_i][sample] = input * amplitude;
