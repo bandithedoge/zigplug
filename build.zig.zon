@@ -1,13 +1,13 @@
 .{
-    .name = "zigplug",
+    .name = .zigplug,
+    .fingerprint = 0x7af14e4424887f89,
     .version = "0.0.0",
-    .mach_zig_version = "2024.11.0-mach",
-    .minimum_zig_version = "0.14.0-dev.2577+271452d22",
+    .minimum_zig_version = "0.14.0",
 
     .dependencies = .{
         .clap = .{
             .url = "https://github.com/free-audio/clap/archive/refs/tags/1.2.6.tar.gz",
-            .hash = "1220f12a5c1eaea6e2065835f3729463be750dda06c19f4df99b848162e155954b56",
+            .hash = "N-V-__8AABAqOwDxKlwerqbiBlg183KUY751DdoGwZ9N-ZuE",
             .lazy = true,
         },
     },

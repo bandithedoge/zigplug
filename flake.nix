@@ -16,7 +16,7 @@
         system,
         ...
       }: let
-        zig' = inputs.zig-overlay.packages.${system}.mach-latest;
+        zig' = inputs.zig-overlay.packages.${system}.default;
       in {
         devShells.default = pkgs.mkShell {
           packages = [
