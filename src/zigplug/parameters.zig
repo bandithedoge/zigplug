@@ -2,7 +2,7 @@ const zigplug = @import("zigplug.zig");
 
 const std = @import("std");
 
-fn Options(comptime T: type) type {
+pub fn Options(comptime T: type) type {
     return struct {
         /// Human-readable, "pretty" name to be displayed by the host or plugin GUI
         name: [:0]const u8,
@@ -29,8 +29,6 @@ fn Options(comptime T: type) type {
     };
 }
 
-// TODO: enum parameters
-
 const ParameterType = enum { float, int, uint, bool };
 
 pub const Parameter = union(ParameterType) {
@@ -40,11 +38,8 @@ pub const Parameter = union(ParameterType) {
             options: Options(T),
 
             pub fn init(comptime options: Options(T)) @This() {
-                if (options.special == .bypass)
-                    switch (@typeInfo(T)) {
-                        .bool => {},
-                        else => @panic("Bypass parameter type must be bool"),
-                    };
+                if (options.special == .bypass and T != bool)
+                    @compileError("Bypass parameter type must be bool, got " ++ @typeName(T));
 
                 return .{
                     .value = .init(options.default),
@@ -52,10 +47,14 @@ pub const Parameter = union(ParameterType) {
                 };
             }
 
-            pub fn set(self: *@This(), value: T) void {
-                self.value.store(value, .unordered);
+            pub fn set(self: *@This(), value: anytype) void {
+                self.value.store(switch (@typeInfo(@TypeOf(value))) {
+                    .@"enum" => @intFromEnum(value),
+                    else => value,
+                }, .unordered);
             }
 
+            // TODO: this for enums
             pub fn get(self: *const @This()) T {
                 return self.value.load(.unordered);
             }
@@ -220,10 +219,120 @@ test "unit and custom formatting" {
 
 /// In some plugin APIs the bypass parameter gets special treatment as it is merged with the host's bypass button.
 /// Create a boolean parameter with `parameters.Parameter` and set `.special = .bypass` if you want to customize the name and default value.
-pub const Bypass = Parameter{ .bool = .init(.{
+pub const bypass = Parameter{ .bool = .init(.{
     .name = "Bypass",
     .default = false,
     .min = false,
     .max = true,
     .special = .bypass,
 }) };
+
+/// Subset of `Options`
+pub fn ChoiceOptions(T: type) type {
+    return struct {
+        name: [:0]const u8,
+        default: T,
+        automatable: bool = true,
+        /// Map of pretty strings to enum, used for formatting human-readable parameter values.
+        /// Consider initializing with `std.StaticStringMap(T).initComptime`.
+        map: ?std.StaticStringMap(T) = null,
+    };
+}
+
+pub fn choice(comptime T: type, comptime options: ChoiceOptions(T)) Parameter {
+    switch (@typeInfo(T)) {
+        .@"enum" => |info| {
+            const callbacks = struct {
+                pub fn format(allocator: std.mem.Allocator, value: u64, unit: ?[]const u8) ![]const u8 {
+                    _ = unit; // autofix
+                    if (value >= @typeInfo(T).@"enum".fields.len) {
+                        zigplug.log.err("invalid value for enum {s}: {}", .{ @typeName(T), value });
+                        return error.InvalidEnum;
+                    }
+                    const name = blk: {
+                        if (options.map) |map|
+                            for (map.keys(), map.values()) |k, v|
+                                if (value == @intFromEnum(v))
+                                    break :blk k;
+                        break :blk std.enums.tagName(T, @enumFromInt(value)).?;
+                    };
+                    return std.fmt.allocPrint(allocator, "{s}", .{name});
+                }
+
+                pub fn parse(value: []const u8, unit: ?[]const u8) error{InvalidEnum}!u64 {
+                    _ = unit; // autofix
+                    if (options.map) |map|
+                        if (map.get(value)) |v|
+                            return @intFromEnum(v);
+
+                    inline for (info.fields) |field| {
+                        if (std.mem.eql(u8, value, field.name))
+                            return field.value;
+                    }
+
+                    zigplug.log.err("invalid value for enum {s}: '{s}'", .{ @typeName(T), value });
+                    return error.InvalidEnum;
+                }
+            };
+
+            return .{
+                .uint = .init(.{
+                    .name = options.name,
+                    .default = @intFromEnum(options.default),
+                    .min = 0,
+                    .max = info.fields.len - 1,
+                    .automatable = options.automatable,
+                    .format = callbacks.format,
+                    .parse = callbacks.parse,
+                }),
+            };
+        },
+        else => @compileError("Choice type must be an enum, got " ++ @typeName(T)),
+    }
+}
+
+test choice {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    const T = enum { one, two, three };
+
+    var choice_param = choice(T, .{
+        .name = "Choice parameter",
+        .default = .one,
+    });
+    try std.testing.expectEqualStrings(
+        "one",
+        try choice_param.uint.format(allocator, choice_param.uint.get()),
+    );
+    choice_param.uint.set(T.two);
+    try std.testing.expectEqualStrings(
+        "two",
+        try choice_param.uint.format(allocator, choice_param.uint.get()),
+    );
+
+    var choice_param_custom_fmt = choice(T, .{
+        .name = "Choice parameter with custom formatting",
+        .default = .one,
+        .map = .initComptime(.{
+            .{ "1", .one },
+            .{ "2", .two },
+        }),
+    });
+    try std.testing.expectEqualStrings(
+        "1",
+        try choice_param_custom_fmt.uint.format(allocator, choice_param_custom_fmt.uint.get()),
+    );
+    choice_param_custom_fmt.uint.set(T.two);
+    try std.testing.expectEqualStrings(
+        "2",
+        try choice_param_custom_fmt.uint.format(allocator, choice_param_custom_fmt.uint.get()),
+    );
+    choice_param_custom_fmt.uint.set(T.three);
+    // .three is absent from the static string map so the tag's name should be used
+    try std.testing.expectEqualStrings(
+        "three",
+        try choice_param_custom_fmt.uint.format(allocator, choice_param_custom_fmt.uint.get()),
+    );
+}

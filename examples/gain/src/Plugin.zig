@@ -8,10 +8,14 @@ var gpa = std.heap.GeneralPurposeAllocator(.{}).init;
 const Parameters = enum {
     bypass,
     gain,
+    pan,
+    panning_law,
+
+    const PanningLaw = enum { linear, constant_power, square_root };
 
     pub fn setup(self: Parameters) zigplug.Parameter {
         return switch (self) {
-            .bypass => zigplug.parameters.Bypass,
+            .bypass => zigplug.parameters.bypass,
             .gain => .{ .float = .init(.{
                 .name = "Gain",
                 .default = 0,
@@ -19,6 +23,21 @@ const Parameters = enum {
                 .max = 24,
                 .unit = "db",
             }) },
+            .pan => .{ .float = .init(.{
+                .name = "Pan",
+                .default = 0,
+                .min = -1,
+                .max = 1,
+            }) },
+            .panning_law => zigplug.parameters.choice(PanningLaw, .{
+                .name = "Panning law",
+                .default = .linear,
+                .map = .initComptime(.{
+                    .{ "Linear", .linear },
+                    .{ "Constant power", .constant_power },
+                    .{ "Square root", .square_root },
+                }),
+            }),
         };
     }
 };
@@ -68,17 +87,32 @@ fn deinit(self: *@This()) void {
 
 fn process(self: *@This(), block: zigplug.ProcessBlock) !void {
     _ = self;
-    const amplitude: f32 = @floatCast(std.math.pow(f64, 2, block.getParam(Parameters.gain).float.get() / 6));
+    const gain: f32 = @floatCast(std.math.pow(f64, 2, block.getParam(Parameters.gain).float.get() / 6));
+
+    const left_gain: f32, const right_gain: f32 = blk: {
+        const pan: f32 = @floatCast((block.getParam(Parameters.pan).float.get() + 1) / 2);
+        switch (@as(Parameters.PanningLaw, @enumFromInt(block.getParam(Parameters.panning_law).uint.get()))) {
+            .linear => break :blk .{ 1 - pan, pan },
+            .constant_power => break :blk .{
+                std.math.cos(0.5 * std.math.pi * pan),
+                std.math.sin(0.5 * std.math.pi * pan),
+            },
+            .square_root => break :blk .{
+                std.math.sqrt(1 - pan),
+                std.math.sqrt(pan),
+            },
+        }
+    };
 
     if (block.getParam(Parameters.bypass).bool.get()) {
         for (block.in, 0..) |in, block_i| {
             for (in, 0..) |channel, channel_i|
                 @memcpy(block.out[block_i][channel_i], channel);
         }
-    } else for (block.in, 0..) |in, block_i| {
-        for (in, 0..) |channel, channel_i| {
-            for (channel, 0..block.samples) |input, sample|
-                block.out[block_i][channel_i][sample] = input * amplitude;
-        }
+    } else for (block.in, block.out) |in, out| {
+        for (in[0], out[0]) |i, *o|
+            o.* = i * left_gain * gain;
+        for (in[1], out[1]) |i, *o|
+            o.* = i * right_gain * gain;
     }
 }
