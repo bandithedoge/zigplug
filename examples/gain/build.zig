@@ -9,19 +9,18 @@ pub fn build(b: *std.Build) !void {
         .clap = true,
     });
 
-    const plugin = b.addStaticLibrary(.{
-        .name = "zigplug_minimal_example",
-        .root_module = b.createModule(.{
-            .target = target,
-            .optimize = optimize,
-            .root_source_file = b.path("src/Plugin.zig"),
-            .imports = &.{
-                .{ .name = "zigplug", .module = zigplug_dep.module("zigplug") },
-            },
-        }),
+    const plugin = b.createModule(.{
+        .target = target,
+        .optimize = optimize,
+        .root_source_file = b.path("src/Plugin.zig"),
+        .imports = &.{
+            .{ .name = "zigplug", .module = zigplug_dep.module("zigplug") },
+        },
     });
 
-    const builder = zigplug.PluginBuilder.new(plugin, zigplug_dep);
-
-    _ = try builder.addClapTarget();
+    _ = try zigplug.addClap(b, .{
+        .name = "gain",
+        .root_module = plugin,
+        .zigplug_dep = zigplug_dep,
+    });
 }

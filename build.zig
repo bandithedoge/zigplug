@@ -71,46 +71,46 @@ pub fn build(b: *std.Build) !void {
     }
 }
 
-// TODO: rethink entire build system
-pub const PluginBuilder = struct {
-    object: *std.Build.Step.Compile,
-    zigplug: *std.Build.Dependency,
-
-    pub fn new(object: *std.Build.Step.Compile, zigplug: *std.Build.Dependency) PluginBuilder {
-        return .{
-            .object = object,
-            .zigplug = zigplug,
-        };
-    }
-
-    pub fn addClapTarget(self: *const PluginBuilder) !*std.Build.Step.Compile {
-        const b = self.zigplug.builder;
-        const name = b.fmt("{s}.clap", .{self.object.name});
-
-        const entry = b.addWriteFile("clap_entry.zig",
-            \\ export const clap_entry = @import("clap_adapter").clapEntry(@import("plugin_root"));
-        );
-        entry.step.dependOn(&self.object.step);
-
-        const clap = b.addSharedLibrary(.{
-            .name = name,
-            .root_module = b.createModule(.{
-                .root_source_file = entry.getDirectory().path(b, "clap_entry.zig"),
-                .target = self.object.root_module.resolved_target orelse b.standardTargetOptions(.{}),
-                .optimize = self.object.root_module.optimize orelse b.standardOptimizeOption(.{}),
-                .imports = &.{
-                    .{ .name = "plugin_root", .module = self.object.root_module },
-                    .{ .name = "clap_adapter", .module = self.zigplug.module("clap_adapter") },
-                },
-            }),
-        });
-        clap.step.dependOn(&entry.step);
-
-        const install = self.object.step.owner.addInstallArtifact(clap, .{
-            .dest_sub_path = name,
-        });
-        self.object.step.owner.getInstallStep().dependOn(&install.step);
-
-        return clap;
-    }
+pub const Options = struct {
+    /// Doesn't have to match the display name in your plugin's descriptor
+    name: []const u8,
+    /// Module that contains `plugin()`
+    root_module: *std.Build.Module,
+    /// Same dependency your plugin imports the "zigplug" module from
+    zigplug_dep: *std.Build.Dependency,
+    /// Whether to add the resulting compile step to your project's top level install step
+    install: bool = true,
 };
+
+/// If `options.install` is true, the result will be installed to `lib/clap/{options.name}.clap`
+pub fn addClap(b: *std.Build, options: Options) !*std.Build.Step.Compile {
+    const entry = b.addWriteFile("entry.zig",
+        \\ export const clap_entry = @import("clap_adapter").clapEntry(@import("plugin_root"));
+    );
+
+    const lib = b.addLibrary(.{
+        .name = try std.fmt.allocPrint(b.allocator, "{s}_clap", .{options.name}),
+        .linkage = .dynamic,
+        .root_module = b.createModule(.{
+            .target = options.root_module.resolved_target,
+            .optimize = options.root_module.optimize,
+            .root_source_file = entry.getDirectory().path(b, "entry.zig"),
+            .imports = &.{
+                .{ .name = "plugin_root", .module = options.root_module },
+                .{ .name = "clap_adapter", .module = options.zigplug_dep.module("clap_adapter") },
+            },
+        }),
+    });
+
+    lib.step.dependOn(&entry.step);
+
+    if (options.install) {
+        const install = b.addInstallArtifact(lib, .{
+            .dest_sub_path = try std.fmt.allocPrint(b.allocator, "clap/{s}.clap", .{options.name}),
+        });
+
+        b.getInstallStep().dependOn(&install.step);
+    }
+
+    return lib;
+}
