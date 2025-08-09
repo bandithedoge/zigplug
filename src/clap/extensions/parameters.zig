@@ -2,7 +2,6 @@
 
 const c = @import("clap_c");
 const clap = @import("clap_adapter");
-const zigplug = @import("zigplug");
 
 const std = @import("std");
 
@@ -11,8 +10,7 @@ const log = std.log.scoped(.zigplug_clap_parameters);
 pub fn extension(comptime Plugin: type) *const c.clap_plugin_params_t {
     std.debug.assert(Plugin.desc.Parameters != null);
     const parameters = struct {
-        pub fn count(clap_plugin: [*c]const c.clap_plugin_t) callconv(.c) u32 {
-            _ = clap_plugin; // autofix
+        pub fn count(_: [*c]const c.clap_plugin_t) callconv(.c) u32 {
             return std.meta.fields(Plugin.desc.Parameters.?).len;
         }
 
@@ -121,8 +119,7 @@ pub fn extension(comptime Plugin: type) *const c.clap_plugin_params_t {
             return true;
         }
 
-        pub fn flush(clap_plugin: [*c]const c.clap_plugin_t, in: [*c]const c.clap_input_events_t, out: [*c]const c.clap_output_events_t) callconv(.c) void {
-            _ = out; // don't need to send parameter change events between threads when we have atomics
+        pub fn flush(clap_plugin: [*c]const c.clap_plugin_t, in: [*c]const c.clap_input_events_t, _: [*c]const c.clap_output_events_t) callconv(.c) void {
             for (0..in.?.*.size.?(in)) |i| {
                 const event = in.?.*.get.?(in, @intCast(i)).?;
                 clap.processEvent(Plugin, clap_plugin, event);

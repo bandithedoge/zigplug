@@ -88,7 +88,7 @@ pub const PluginBuilder = struct {
         const name = b.fmt("{s}.clap", .{self.object.name});
 
         const entry = b.addWriteFile("clap_entry.zig",
-            \\ export const clap_entry = @import("clap_adapter").clap_entry(@import("plugin_root"));
+            \\ export const clap_entry = @import("clap_adapter").clapEntry(@import("plugin_root"));
         );
         entry.step.dependOn(&self.object.step);
 

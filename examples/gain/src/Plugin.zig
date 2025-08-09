@@ -1,5 +1,4 @@
 const std = @import("std");
-const builtin = @import("builtin");
 
 const zigplug = @import("zigplug");
 
@@ -31,7 +30,7 @@ const Parameters = enum {
             }) },
             .panning_law => zigplug.parameters.choice(PanningLaw, .{
                 .name = "Panning law",
-                .default = .linear,
+                .default = .constant_power,
                 .map = .initComptime(.{
                     .{ "Linear", .linear },
                     .{ "Constant power", .constant_power },
@@ -87,7 +86,6 @@ fn deinit(self: *@This()) void {
 
 fn process(self: *@This(), block: zigplug.ProcessBlock) !void {
     _ = self;
-    const gain: f32 = @floatCast(std.math.pow(f64, 2, block.getParam(Parameters.gain).float.get() / 6));
 
     const left_gain: f32, const right_gain: f32 = blk: {
         const pan: f32 = @floatCast((block.getParam(Parameters.pan).float.get() + 1) / 2);
@@ -109,10 +107,10 @@ fn process(self: *@This(), block: zigplug.ProcessBlock) !void {
             for (in, 0..) |channel, channel_i|
                 @memcpy(block.out[block_i][channel_i], channel);
         }
-    } else for (block.in, block.out) |in, out| {
-        for (in[0], out[0]) |i, *o|
-            o.* = i * left_gain * gain;
-        for (in[1], out[1]) |i, *o|
-            o.* = i * right_gain * gain;
-    }
+    } else for (block.in, block.out) |in, out|
+        for (0..block.samples) |i| {
+            const gain: f32 = @floatCast(std.math.pow(f64, 2, block.getParam(Parameters.gain).float.get() / 6));
+            out[0][i] = in[0][i] * left_gain * gain;
+            out[1][i] = in[1][i] * right_gain * gain;
+        };
 }

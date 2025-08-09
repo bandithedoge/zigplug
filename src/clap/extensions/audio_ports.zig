@@ -1,20 +1,14 @@
 const std = @import("std");
-const zigplug = @import("zigplug");
 const c = @import("clap_c");
 
 pub fn extension(comptime Plugin: type) *const c.clap_plugin_audio_ports_t {
     const audio_ports = struct {
-        pub fn count(clap_plugin: [*c]const c.clap_plugin_t, is_input: bool) callconv(.c) u32 {
-            _ = clap_plugin; // autofix
-
+        pub fn count(_: [*c]const c.clap_plugin_t, is_input: bool) callconv(.c) u32 {
             const ports = if (is_input) Plugin.desc.ports.in else Plugin.desc.ports.out;
-
             return @intCast(ports.len);
         }
 
-        pub fn get(clap_plugin: [*c]const c.clap_plugin_t, index: u32, is_input: bool, info: [*c]c.clap_audio_port_info_t) callconv(.c) bool {
-            _ = clap_plugin; // autofix
-
+        pub fn get(_: [*c]const c.clap_plugin_t, index: u32, is_input: bool, info: [*c]c.clap_audio_port_info_t) callconv(.c) bool {
             const ports = if (is_input) Plugin.desc.ports.in else Plugin.desc.ports.out;
 
             if (index >= ports.len) {

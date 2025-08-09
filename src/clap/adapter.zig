@@ -1,19 +1,18 @@
 const std = @import("std");
 
 const zigplug = @import("zigplug");
-const options = @import("zigplug_options");
 const c = @import("clap_c");
 
 pub const log = std.log.scoped(.zigplug_clap);
+pub const io = @import("io.zig");
 
 pub const Data = struct {
-    plugin_data: zigplug.PluginData = undefined,
+    plugin_data: zigplug.PluginData,
     parameters: ?[]zigplug.Parameter = null,
 
-    host: [*c]const c.clap_host_t = undefined,
+    host: [*c]const c.clap_host_t = null,
     host_timer_support: [*c]const c.clap_host_timer_support_t = null,
     host_gui: [*c]const c.clap_host_gui_t = null,
-    timer_id: c.clap_id = undefined,
 
     pub inline fn cast(ptr: [*c]const c.clap_plugin_t) *Data {
         return @ptrCast(@alignCast(ptr.*.plugin_data));
@@ -82,29 +81,21 @@ fn ClapPlugin(comptime Plugin: type) type {
             return true;
         }
 
-        fn deactivate(clap_plugin: [*c]const c.clap_plugin) callconv(.c) void {
+        fn deactivate(_: [*c]const c.clap_plugin) callconv(.c) void {
             log.debug("deactivate()", .{});
-
-            _ = clap_plugin;
         }
 
-        fn start_processing(clap_plugin: [*c]const c.clap_plugin) callconv(.c) bool {
+        fn start_processing(_: [*c]const c.clap_plugin) callconv(.c) bool {
             log.debug("start_processing()", .{});
-
-            _ = clap_plugin;
             return true;
         }
 
-        fn stop_processing(clap_plugin: [*c]const c.clap_plugin) callconv(.c) void {
+        fn stop_processing(_: [*c]const c.clap_plugin) callconv(.c) void {
             log.debug("stop_processing()", .{});
-
-            _ = clap_plugin;
         }
 
-        fn reset(clap_plugin: [*c]const c.clap_plugin) callconv(.c) void {
+        fn reset(_: [*c]const c.clap_plugin) callconv(.c) void {
             log.debug("reset()", .{});
-
-            _ = clap_plugin;
         }
 
         fn process(clap_plugin: [*c]const c.clap_plugin, clap_process: [*c]const c.clap_process_t) callconv(.c) c.clap_process_status {
@@ -174,34 +165,26 @@ fn ClapPlugin(comptime Plugin: type) type {
             return c.CLAP_PROCESS_CONTINUE;
         }
 
-        fn get_extension(clap_plugin: [*c]const c.clap_plugin, id: [*c]const u8) callconv(.c) ?*const anyopaque {
+        fn get_extension(_: [*c]const c.clap_plugin, id: [*c]const u8) callconv(.c) ?*const anyopaque {
             log.debug("get_extension({s})", .{id});
-            _ = clap_plugin; // autofix
-
             return @import("extensions.zig").getExtension(Plugin, std.mem.span(id));
         }
 
-        fn on_main_thread(clap_plugin: [*c]const c.clap_plugin) callconv(.c) void {
+        fn on_main_thread(_: [*c]const c.clap_plugin) callconv(.c) void {
             log.debug("on_main_thread()", .{});
-
-            _ = clap_plugin;
         }
     };
 }
 
 fn PluginFactory(comptime Plugin: type) type {
     return extern struct {
-        fn get_plugin_count(factory: [*c]const c.clap_plugin_factory) callconv(.c) u32 {
+        fn get_plugin_count(_: [*c]const c.clap_plugin_factory) callconv(.c) u32 {
             log.debug("get_plugin_count()", .{});
-
-            _ = factory;
             return 1;
         }
 
-        fn get_plugin_descriptor(factory: [*c]const c.clap_plugin_factory, index: u32) callconv(.c) [*c]const c.clap_plugin_descriptor_t {
+        fn get_plugin_descriptor(_: [*c]const c.clap_plugin_factory, index: u32) callconv(.c) [*c]const c.clap_plugin_descriptor_t {
             log.debug("get_plugin_descriptor({any})", .{index});
-
-            _ = factory;
 
             // const FeatureMap = std.EnumMap(zigplug.Feature, [*c]const u8);
             //
@@ -274,9 +257,8 @@ fn PluginFactory(comptime Plugin: type) type {
             };
         }
 
-        fn create_plugin(factory: [*c]const c.clap_plugin_factory, host: [*c]const c.clap_host_t, plugin_id: [*c]const u8) callconv(.c) [*c]const c.clap_plugin_t {
+        fn create_plugin(_: [*c]const c.clap_plugin_factory, host: [*c]const c.clap_host_t, plugin_id: [*c]const u8) callconv(.c) [*c]const c.clap_plugin_t {
             log.debug("create_plugin({s})", .{plugin_id});
-            _ = factory;
 
             const clap_plugin = ClapPlugin(Plugin);
 
@@ -340,7 +322,7 @@ fn PluginEntry(factory: c.clap_plugin_factory_t) type {
     };
 }
 
-pub fn clap_entry(comptime Plugin: type) c.clap_plugin_entry_t {
+pub fn clapEntry(comptime Plugin: type) c.clap_plugin_entry_t {
     const factory = PluginFactory(Plugin);
 
     const factory_c: c.clap_plugin_factory_t = .{

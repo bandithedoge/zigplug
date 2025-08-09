@@ -32,14 +32,14 @@ pub fn Options(comptime T: type) type {
 const ParameterType = enum { float, int, uint, bool };
 
 pub const Parameter = union(ParameterType) {
-    fn Inner(comptime T: type) type {
+    fn Inner(comptime Type: type) type {
         return struct {
-            value: std.atomic.Value(T),
-            options: Options(T),
+            value: std.atomic.Value(Type),
+            options: Options(Type),
 
-            pub fn init(comptime options: Options(T)) @This() {
-                if (options.special == .bypass and T != bool)
-                    @compileError("Bypass parameter type must be bool, got " ++ @typeName(T));
+            pub fn init(comptime options: Options(Type)) @This() {
+                if (options.special == .bypass and Type != bool)
+                    @compileError("Bypass parameter type must be bool, got " ++ @typeName(Type));
 
                 return .{
                     .value = .init(options.default),
@@ -55,12 +55,12 @@ pub const Parameter = union(ParameterType) {
             }
 
             // TODO: this for enums
-            pub fn get(self: *const @This()) T {
+            pub fn get(self: *const @This()) Type {
                 return self.value.load(.unordered);
             }
 
-            pub fn fromFloat(value: f64) T {
-                return switch (@typeInfo(T)) {
+            pub fn fromFloat(value: f64) Type {
+                return switch (@typeInfo(Type)) {
                     .float => @floatCast(value),
                     .int => @intFromFloat(value),
                     .bool => value == 1,
@@ -68,7 +68,7 @@ pub const Parameter = union(ParameterType) {
                 };
             }
 
-            pub fn toFloat(value: T) f64 {
+            pub fn toFloat(value: Type) f64 {
                 return switch (@typeInfo(@TypeOf(value))) {
                     .float => @floatCast(value),
                     .int => @floatFromInt(value),
@@ -77,7 +77,8 @@ pub const Parameter = union(ParameterType) {
                 };
             }
 
-            pub fn format(self: *const @This(), allocator: std.mem.Allocator, value: T) ![]const u8 {
+            // TODO: use std.fmt.format
+            pub fn format(self: *const @This(), allocator: std.mem.Allocator, value: Type) ![]const u8 {
                 if (self.options.format) |f|
                     return f(allocator, value, self.options.unit);
 
@@ -92,7 +93,7 @@ pub const Parameter = union(ParameterType) {
                     std.fmt.allocPrint(allocator, fmt_string, .{value});
             }
 
-            pub fn parse(self: *const @This(), value: []const u8) !T {
+            pub fn parse(self: *const @This(), value: []const u8) !Type {
                 if (self.options.parse) |f|
                     return f(value, self.options.unit);
 
@@ -101,12 +102,12 @@ pub const Parameter = union(ParameterType) {
                 else
                     value;
 
-                return switch (comptime @typeInfo(T)) {
-                    .float => std.fmt.parseFloat(T, str),
+                return switch (comptime @typeInfo(Type)) {
+                    .float => std.fmt.parseFloat(Type, str),
                     .int => |t| try (switch (t.signedness) {
                         .signed => std.fmt.parseInt,
                         .unsigned => std.fmt.parseUnsigned,
-                    })(T, str, 10),
+                    })(Type, str, 10),
                     .bool => std.mem.eql(u8, str, "true"),
                     else => unreachable,
                 };
@@ -243,8 +244,7 @@ pub fn choice(comptime T: type, comptime options: ChoiceOptions(T)) Parameter {
     switch (@typeInfo(T)) {
         .@"enum" => |info| {
             const callbacks = struct {
-                pub fn format(allocator: std.mem.Allocator, value: u64, unit: ?[]const u8) ![]const u8 {
-                    _ = unit; // autofix
+                pub fn format(allocator: std.mem.Allocator, value: u64, _: ?[]const u8) ![]const u8 {
                     if (value >= @typeInfo(T).@"enum".fields.len) {
                         zigplug.log.err("invalid value for enum {s}: {}", .{ @typeName(T), value });
                         return error.InvalidEnum;
@@ -259,8 +259,7 @@ pub fn choice(comptime T: type, comptime options: ChoiceOptions(T)) Parameter {
                     return std.fmt.allocPrint(allocator, "{s}", .{name});
                 }
 
-                pub fn parse(value: []const u8, unit: ?[]const u8) error{InvalidEnum}!u64 {
-                    _ = unit; // autofix
+                pub fn parse(value: []const u8, _: ?[]const u8) error{InvalidEnum}!u64 {
                     if (options.map) |map|
                         if (map.get(value)) |v|
                             return @intFromEnum(v);
