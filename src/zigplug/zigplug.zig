@@ -68,34 +68,31 @@ pub const Description = struct {
 
 // TODO: make descriptor a member here
 pub const Plugin = struct {
-    const Callbacks = struct {
-        init: *const fn () anyerror!*anyopaque,
+    context: *anyopaque,
+    vtable: struct {
         deinit: *const fn (*anyopaque) void,
         process: *const fn (*anyopaque, ProcessBlock) anyerror!void,
-    };
+    },
 
-    const Options = struct {
-        allocator: std.mem.Allocator,
-    };
-
-    ptr: *anyopaque,
     allocator: std.mem.Allocator,
-    callbacks: Callbacks,
 
-    pub fn new(options: Options, callbacks: Callbacks) !Plugin {
+    pub fn new(T: type, allocator: std.mem.Allocator) !Plugin {
         return .{
-            .ptr = try callbacks.init(),
-            .allocator = options.allocator,
-            .callbacks = callbacks,
+            .context = try T.init(),
+            .vtable = .{
+                .deinit = @ptrCast(&T.deinit),
+                .process = @ptrCast(&T.process),
+            },
+            .allocator = allocator,
         };
     }
 
     pub inline fn deinit(self: *Plugin) void {
-        self.callbacks.deinit(self.ptr);
+        self.vtable.deinit(self.context);
     }
 
     pub inline fn process(self: *Plugin, block: ProcessBlock) !void {
-        try self.callbacks.process(self.ptr, block);
+        try self.vtable.process(self.context, block);
     }
 };
 
