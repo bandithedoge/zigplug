@@ -5,11 +5,6 @@ pub const Parameter = parameters.Parameter;
 
 pub const log = std.log.scoped(.zigplug);
 
-pub const Port = struct {
-    name: [:0]const u8, // TODO: make this optional
-    channels: u32,
-};
-
 pub const ProcessBlock = struct {
     in: []const []const []const f32,
     out: [][][]f32,
@@ -45,7 +40,12 @@ pub const PluginData = struct {
     }
 };
 
-pub const Ports = struct {
+pub const AudioPorts = struct {
+    pub const Port = struct {
+        name: [:0]const u8, // TODO: make this optional
+        channels: u32,
+    };
+
     in: []const Port,
     out: []const Port,
 };
@@ -61,7 +61,7 @@ pub const Description = struct {
     manual_url: ?[:0]const u8 = null,
     support_url: ?[:0]const u8 = null,
 
-    ports: Ports,
+    audio_ports: ?AudioPorts = null,
 
     Parameters: ?type = null,
 };

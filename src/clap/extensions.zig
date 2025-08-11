@@ -3,8 +3,9 @@ const zigplug = @import("zigplug");
 const c = @import("clap_c");
 
 pub inline fn getExtension(comptime Plugin: type, id: [:0]const u8) ?*const anyopaque {
-    if (std.mem.eql(u8, id, &c.CLAP_EXT_AUDIO_PORTS)) {
-        return @import("extensions/audio_ports.zig").extension(Plugin);
+    if (comptime Plugin.desc.audio_ports != null) {
+        if (std.mem.eql(u8, id, &c.CLAP_EXT_AUDIO_PORTS))
+            return @import("extensions/audio_ports.zig").extension(Plugin);
     }
 
     if (comptime Plugin.desc.Parameters != null) {

@@ -115,52 +115,54 @@ fn ClapPlugin(comptime Plugin: type) type {
                     };
 
             // render audio
-            const inputs = Plugin.desc.ports.in.len;
-            const outputs = Plugin.desc.ports.out.len;
+            if (Plugin.desc.audio_ports) |ports| {
+                const inputs = ports.in.len;
+                const outputs = ports.out.len;
 
-            std.debug.assert(clap_process.*.audio_inputs_count == inputs);
-            std.debug.assert(clap_process.*.audio_outputs_count == outputs);
+                std.debug.assert(clap_process.*.audio_inputs_count == inputs);
+                std.debug.assert(clap_process.*.audio_outputs_count == outputs);
 
-            var input_buffers: [inputs][][]f32 = undefined;
-            inline for (0..inputs) |i| {
-                const input = clap_process.*.audio_inputs[i];
-                const channels = Plugin.desc.ports.in[i].channels;
+                var input_buffers: [inputs][][]f32 = undefined;
+                inline for (0..inputs) |i| {
+                    const input = clap_process.*.audio_inputs[i];
+                    const channels = ports.in[i].channels;
 
-                std.debug.assert(input.channel_count == channels);
+                    std.debug.assert(input.channel_count == channels);
 
-                var channel_buffers: [channels][]f32 = undefined;
+                    var channel_buffers: [channels][]f32 = undefined;
 
-                inline for (0..channels) |chan|
-                    channel_buffers[chan] = input.data32[chan][0..samples];
+                    inline for (0..channels) |chan|
+                        channel_buffers[chan] = input.data32[chan][0..samples];
 
-                input_buffers[i] = &channel_buffers;
+                    input_buffers[i] = &channel_buffers;
+                }
+
+                var output_buffers: [outputs][][]f32 = undefined;
+                inline for (0..outputs) |i| {
+                    const output = clap_process.*.audio_outputs[i];
+                    const channels = ports.in[i].channels;
+
+                    std.debug.assert(output.channel_count == channels);
+
+                    var channel_buffers: [channels][]f32 = undefined;
+
+                    inline for (0..channels) |chan|
+                        channel_buffers[chan] = output.data32[chan][0..samples];
+
+                    output_buffers[i] = &channel_buffers;
+                }
+
+                const block: zigplug.ProcessBlock = .{
+                    .in = &input_buffers,
+                    .out = &output_buffers,
+                    .samples = clap_process.*.frames_count,
+                    .sample_rate = data.plugin_data.sample_rate,
+                    .parameters = data.parameters,
+                };
+
+                data.plugin_data.plugin.process(block) catch
+                    return c.CLAP_PROCESS_ERROR;
             }
-
-            var output_buffers: [outputs][][]f32 = undefined;
-            inline for (0..outputs) |i| {
-                const output = clap_process.*.audio_outputs[i];
-                const channels = Plugin.desc.ports.in[i].channels;
-
-                std.debug.assert(output.channel_count == channels);
-
-                var channel_buffers: [channels][]f32 = undefined;
-
-                inline for (0..channels) |chan|
-                    channel_buffers[chan] = output.data32[chan][0..samples];
-
-                output_buffers[i] = &channel_buffers;
-            }
-
-            const block: zigplug.ProcessBlock = .{
-                .in = &input_buffers,
-                .out = &output_buffers,
-                .samples = clap_process.*.frames_count,
-                .sample_rate = data.plugin_data.sample_rate,
-                .parameters = data.parameters,
-            };
-
-            data.plugin_data.plugin.process(block) catch
-                return c.CLAP_PROCESS_ERROR;
 
             return c.CLAP_PROCESS_CONTINUE;
         }

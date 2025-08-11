@@ -77,7 +77,7 @@ pub const Parameter = union(ParameterType) {
                 };
             }
 
-            // TODO: use std.fmt.format
+            // TODO: use std.fmt.format (writergate)
             pub fn format(self: *const @This(), allocator: std.mem.Allocator, value: Type) ![]const u8 {
                 if (self.options.format) |f|
                     return f(allocator, value, self.options.unit);
