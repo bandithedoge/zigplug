@@ -5,12 +5,25 @@ pub const Parameter = parameters.Parameter;
 
 pub const log = std.log.scoped(.zigplug);
 
+pub const NoteEvent = struct {
+    type: enum { on, off, choke, end },
+    /// From C-1 to G9.
+    /// 60 is middle C, `null` means wildcard
+    note: ?u8,
+    channel: ?u5,
+    timing: u32,
+    velocity: f64,
+};
+
 pub const ProcessBlock = struct {
-    in: []const []const []const f32,
-    out: [][][]f32,
-    samples: usize,
-    sample_rate: u32,
-    parameters: ?[]const Parameter,
+    context: *anyopaque,
+    fn_nextNoteEvent: *const fn (*anyopaque) ?NoteEvent,
+
+    in: []const []const []const f32 = &.{},
+    out: [][][]f32 = &.{},
+    samples: usize = 0,
+    sample_rate: u32 = 0,
+    parameters: ?[]const Parameter = null,
 
     pub fn getParam(self: *const ProcessBlock, param: anytype) *const Parameter {
         switch (@typeInfo(@TypeOf(param))) {
@@ -23,6 +36,11 @@ pub const ProcessBlock = struct {
             else => @compileError("getParam() must be called with an enum"),
         }
     }
+
+    // TODO: should this be an actual iterator?
+    pub fn nextNoteEvent(self: *const ProcessBlock) ?NoteEvent {
+        return self.fn_nextNoteEvent(self.context);
+    }
 };
 
 pub const ProcessStatus = enum {
@@ -32,7 +50,7 @@ pub const ProcessStatus = enum {
 
 pub const PluginData = struct {
     /// Hz
-    sample_rate: u32,
+    sample_rate: u32 = 0,
     plugin: Plugin,
 
     pub fn cast(ptr: ?*anyopaque) *PluginData {
@@ -44,6 +62,15 @@ pub const AudioPorts = struct {
     pub const Port = struct {
         name: [:0]const u8, // TODO: make this optional
         channels: u32,
+    };
+
+    in: []const Port,
+    out: []const Port,
+};
+
+pub const NotePorts = struct {
+    pub const Port = struct {
+        name: [:0]const u8,
     };
 
     in: []const Port,
@@ -62,6 +89,7 @@ pub const Description = struct {
     support_url: ?[:0]const u8 = null,
 
     audio_ports: ?AudioPorts = null,
+    note_ports: ?NotePorts = null,
 
     Parameters: ?type = null,
 };
@@ -76,7 +104,8 @@ pub const Plugin = struct {
 
     allocator: std.mem.Allocator,
 
-    pub fn new(T: type, allocator: std.mem.Allocator) !Plugin {
+    // TODO: allow setting an allocator *after* init; don't require the user to allocate and return a pointer
+    pub fn new(comptime T: type, allocator: std.mem.Allocator) !Plugin {
         return .{
             .context = try T.init(),
             .vtable = .{

@@ -8,6 +8,11 @@ pub inline fn getExtension(comptime Plugin: type, id: [:0]const u8) ?*const anyo
             return @import("extensions/audio_ports.zig").extension(Plugin);
     }
 
+    if (comptime Plugin.desc.note_ports != null) {
+        if (std.mem.eql(u8, id, &c.CLAP_EXT_NOTE_PORTS))
+            return @import("extensions/note_ports.zig").extension(Plugin);
+    }
+
     if (comptime Plugin.desc.Parameters != null) {
         if (std.mem.eql(u8, id, &c.CLAP_EXT_PARAMS))
             return @import("extensions/parameters.zig").extension(Plugin);

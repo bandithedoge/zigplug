@@ -2,6 +2,7 @@ const std = @import("std");
 
 const zigplug = @import("zigplug");
 
+// FIXME: global var bad
 var gpa = std.heap.GeneralPurposeAllocator(.{}).init;
 
 const Parameters = enum {

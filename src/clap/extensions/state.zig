@@ -6,7 +6,6 @@
 
 const c = @import("clap_c");
 const clap = @import("clap_adapter");
-const s2s = @import("s2s");
 
 const std = @import("std");
 const log = std.log.scoped(.zigplug_clap_state);
