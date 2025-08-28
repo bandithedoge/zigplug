@@ -31,7 +31,8 @@ pub fn build(b: *std.Build) !void {
     test_step.dependOn(&run_tests.step);
 
     const docs_step = b.step("docs", "Build documentation");
-    const lib = b.addStaticLibrary(.{
+
+    const lib = b.addLibrary(.{
         .name = "zigplug",
         .root_module = zigplug,
     });
@@ -91,6 +92,7 @@ pub fn addClap(b: *std.Build, options: Options) !*std.Build.Step.Compile {
     const lib = b.addLibrary(.{
         .name = try std.fmt.allocPrint(b.allocator, "{s}_clap", .{options.name}),
         .linkage = .dynamic,
+        .use_llvm = true,
         .root_module = b.createModule(.{
             .target = options.root_module.resolved_target,
             .optimize = options.root_module.optimize,

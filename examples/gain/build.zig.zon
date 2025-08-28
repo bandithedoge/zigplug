@@ -2,7 +2,7 @@
     .name = .zigplug_minimal_example,
     .fingerprint = 0xbe963eb618c4382a,
     .version = "0.0.0",
-    .minimum_zig_version = "0.14.0",
+    .minimum_zig_version = "0.15.1",
 
     .dependencies = .{
         .zigplug = .{
