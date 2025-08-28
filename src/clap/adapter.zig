@@ -97,6 +97,7 @@ fn ClapPlugin(comptime Plugin: type) type {
                 }
 
                 data.parameters = parameters;
+                data.process_block.parameters = parameters;
             }
 
             return true;
