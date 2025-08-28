@@ -14,17 +14,18 @@ pub fn extension(comptime _: type) *const c.clap_plugin_state {
     const state = struct {
         pub fn save(clap_plugin: [*c]const c.clap_plugin, stream: [*c]const c.clap_ostream) callconv(.c) bool {
             const data = clap.Data.cast(clap_plugin);
-            const writer = clap.io.writer(stream.?);
 
             for (data.parameters.?) |parameter| {
                 switch (parameter) {
                     inline else => |p| {
                         const value = p.get();
-                        const bytes = std.mem.toBytes(value);
-                        writer.writeAll(&bytes) catch {
+                        const size = @sizeOf(@TypeOf(value));
+                        var buffer = std.mem.toBytes(&value);
+                        const bytes = stream.*.write.?(stream, @ptrCast(&buffer), size);
+                        if (bytes != size) {
                             log.err("failed to save parameter '{s}' = {}", .{ p.options.name, value });
                             return false;
-                        };
+                        }
                         log.debug("saved parameter '{s}' = {any}", .{ p.options.name, value });
                     },
                 }
@@ -35,15 +36,17 @@ pub fn extension(comptime _: type) *const c.clap_plugin_state {
 
         pub fn load(clap_plugin: [*c]const c.clap_plugin, stream: [*c]const c.clap_istream) callconv(.c) bool {
             const data = clap.Data.cast(clap_plugin);
-            const reader = clap.io.reader(stream.?);
 
             for (data.parameters.?) |*parameter| switch (parameter.*) {
                 inline else => |*p| {
                     var value = p.get();
-                    _ = reader.readAll(std.mem.asBytes(&value)) catch {
+                    const size = @sizeOf(@TypeOf(value));
+                    var buffer = std.mem.asBytes(&value);
+                    const bytes = stream.*.read.?(stream, @ptrCast(&buffer), size);
+                    if (bytes != size) {
                         log.err("failed to load parameter '{s}'", .{p.options.name});
                         return false;
-                    };
+                    }
                     p.set(value);
 
                     log.debug("loaded parameter '{s}' = {any}", .{ p.options.name, value });

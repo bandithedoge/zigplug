@@ -4,7 +4,6 @@ const zigplug = @import("zigplug");
 const c = @import("clap_c");
 
 pub const log = std.log.scoped(.zigplug_clap);
-pub const io = @import("io.zig");
 
 pub const Data = struct {
     plugin_data: zigplug.PluginData,
