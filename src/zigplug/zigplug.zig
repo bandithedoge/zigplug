@@ -23,19 +23,6 @@ pub const ProcessBlock = struct {
     out: [][][]f32 = &.{},
     samples: usize = 0,
     sample_rate: u32 = 0,
-    parameters: ?[]const Parameter = null,
-
-    pub fn getParam(self: *const ProcessBlock, param: anytype) *const Parameter {
-        switch (@typeInfo(@TypeOf(param))) {
-            .@"enum" => {
-                if (self.parameters) |params|
-                    return &params[@intFromEnum(param)];
-
-                @panic("getParam() was called but there are no parameters");
-            },
-            else => @compileError("getParam() must be called with an enum"),
-        }
-    }
 
     // TODO: should this be an actual iterator?
     pub fn nextNoteEvent(self: *const ProcessBlock) ?NoteEvent {
@@ -98,11 +85,13 @@ pub const Description = struct {
 pub const Plugin = struct {
     context: *anyopaque,
     vtable: struct {
+        // TODO: verify types
         deinit: *const fn (*anyopaque) void,
-        process: *const fn (*anyopaque, ProcessBlock) anyerror!void,
+        process: *const fn (*anyopaque, ProcessBlock, ?*const anyopaque) anyerror!void,
     },
 
     allocator: std.mem.Allocator,
+    parameters: ?*anyopaque = null,
 
     // TODO: allow setting an allocator *after* init; don't require the user to allocate and return a pointer
     pub fn new(comptime T: type, allocator: std.mem.Allocator) !Plugin {
@@ -120,8 +109,8 @@ pub const Plugin = struct {
         self.vtable.deinit(self.context);
     }
 
-    pub inline fn process(self: *Plugin, block: ProcessBlock) !void {
-        try self.vtable.process(self.context, block);
+    pub inline fn process(self: *Plugin, block: ProcessBlock, params: ?*const anyopaque) !void {
+        try self.vtable.process(self.context, block, params);
     }
 };
 

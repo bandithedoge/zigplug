@@ -31,17 +31,21 @@ pub fn build(b: *std.Build) !void {
     test_step.dependOn(&run_tests.step);
 
     const docs_step = b.step("docs", "Build documentation");
+    const check = b.step("check", "Check compile errors");
 
     const lib = b.addLibrary(.{
         .name = "zigplug",
         .root_module = zigplug,
     });
+
     const install_docs = b.addInstallDirectory(.{
         .source_dir = lib.getEmittedDocs(),
         .install_dir = .prefix,
         .install_subdir = "docs",
     });
     docs_step.dependOn(&install_docs.step);
+
+    check.dependOn(&lib.step);
 
     if (options.clap) {
         const clap_adapter = b.addModule("clap_adapter", .{
@@ -69,6 +73,12 @@ pub fn build(b: *std.Build) !void {
         const clap_tests = b.addTest(.{ .root_module = clap_adapter });
         const run_clap_tests = b.addRunArtifact(clap_tests);
         test_step.dependOn(&run_clap_tests.step);
+
+        const clap_lib = b.addLibrary(.{
+            .name = "zigplug_clap",
+            .root_module = clap_adapter,
+        });
+        check.dependOn(&clap_lib.step);
     }
 }
 
@@ -92,6 +102,7 @@ pub fn addClap(b: *std.Build, options: Options) !*std.Build.Step.Compile {
     const lib = b.addLibrary(.{
         .name = try std.fmt.allocPrint(b.allocator, "{s}_clap", .{options.name}),
         .linkage = .dynamic,
+        // printing to stdout/stderr segfaults without this, possibly a bug in zig's new x86 backend
         .use_llvm = true,
         .root_module = b.createModule(.{
             .target = options.root_module.resolved_target,
@@ -108,7 +119,7 @@ pub fn addClap(b: *std.Build, options: Options) !*std.Build.Step.Compile {
 
     if (options.install) {
         const install = b.addInstallArtifact(lib, .{
-            .dest_sub_path = try std.fmt.allocPrint(b.allocator, "clap/{s}.clap", .{options.name}),
+            .dest_sub_path = b.fmt("clap/{s}.clap", .{options.name}),
         });
 
         b.getInstallStep().dependOn(&install.step);

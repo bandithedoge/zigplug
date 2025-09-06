@@ -15,46 +15,36 @@ pub fn extension(comptime Plugin: type) *const c.clap_plugin_params_t {
         }
 
         pub fn get_info(clap_plugin: [*c]const c.clap_plugin_t, index: u32, info: [*c]c.clap_param_info_t) callconv(.c) bool {
-            if (index > @typeInfo(Plugin.desc.Parameters.?).@"enum".fields.len)
+            if (index > @typeInfo(Plugin.desc.Parameters.?).@"struct".fields.len)
                 return false;
 
             const data = clap.Data.cast(clap_plugin);
-            const param = data.parameters.?[index];
+            const param = data.parameters.?[index].*;
 
-            info.?.* = .{
-                .id = index,
-                .default_value = switch (param) {
-                    inline else => |p| @TypeOf(p).toFloat(p.options.default),
+            switch (param) {
+                inline else => |p| {
+                    info.?.* = .{
+                        .id = index,
+                        .default_value = @TypeOf(p).toFloat(p.options.default),
+                        .min_value = @TypeOf(p).toFloat(p.options.min),
+                        .max_value = @TypeOf(p).toFloat(p.options.max),
+                        .flags = 0,
+                    };
+
+                    if (p.options.automatable)
+                        info.?.*.flags |= c.CLAP_PARAM_IS_AUTOMATABLE;
+
+                    if (p.options.stepped)
+                        info.?.*.flags |= c.CLAP_PARAM_IS_STEPPED;
+
+                    if (p.options.special) |special|
+                        switch (special) {
+                            .bypass => info.?.*.flags |= c.CLAP_PARAM_IS_BYPASS,
+                        };
+
+                    std.mem.copyForwards(u8, &info.?.*.name, p.options.name);
                 },
-                .min_value = switch (param) {
-                    inline else => |p| @TypeOf(p).toFloat(p.options.min),
-                },
-                .max_value = switch (param) {
-                    inline else => |p| @TypeOf(p).toFloat(p.options.max),
-                },
-                .flags = 0,
-            };
-
-            if (switch (param) {
-                inline else => |p| p.options.automatable,
-            })
-                info.?.*.flags |= c.CLAP_PARAM_IS_AUTOMATABLE;
-
-            if (switch (param) {
-                inline else => |p| p.options.stepped,
-            })
-                info.?.*.flags |= c.CLAP_PARAM_IS_STEPPED;
-
-            if (switch (param) {
-                inline else => |p| p.options.special,
-            }) |special|
-                switch (special) {
-                    .bypass => info.?.*.flags |= c.CLAP_PARAM_IS_BYPASS,
-                };
-
-            std.mem.copyForwards(u8, &info.?.*.name, switch (param) {
-                inline else => |p| p.options.name,
-            });
+            }
 
             return true;
         }
@@ -64,7 +54,7 @@ pub fn extension(comptime Plugin: type) *const c.clap_plugin_params_t {
                 return false;
 
             const data = clap.Data.cast(clap_plugin);
-            const param = data.parameters.?[id];
+            const param = data.parameters.?[id].*;
             out.?.* = switch (param) {
                 inline else => |p| @TypeOf(p).toFloat(p.get()),
             };
@@ -77,7 +67,7 @@ pub fn extension(comptime Plugin: type) *const c.clap_plugin_params_t {
                 return false;
 
             const data = clap.Data.cast(clap_plugin);
-            const param = data.parameters.?[id];
+            const param = data.parameters.?[id].*;
 
             const formatted = switch (param) {
                 inline else => |p| p.format(data.plugin_data.plugin.allocator, @TypeOf(p).fromFloat(value)),
@@ -106,7 +96,7 @@ pub fn extension(comptime Plugin: type) *const c.clap_plugin_params_t {
 
             const data = clap.Data.cast(clap_plugin);
 
-            const param = data.parameters.?[id];
+            const param = data.parameters.?[id].*;
             const text = std.mem.span(value_text);
 
             out.?.* = switch (param) {

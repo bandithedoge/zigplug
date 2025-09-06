@@ -5,41 +5,35 @@ const zigplug = @import("zigplug");
 // FIXME: global var bad
 var gpa = std.heap.GeneralPurposeAllocator(.{}).init;
 
-const Parameters = enum {
-    bypass,
-    gain,
-    pan,
-    panning_law,
-
+const Parameters = struct {
     const PanningLaw = enum { linear, constant_power, square_root };
 
-    pub fn setup(self: Parameters) zigplug.Parameter {
-        return switch (self) {
-            .bypass => zigplug.parameters.bypass,
-            .gain => .{ .float = .init(.{
-                .name = "Gain",
-                .default = 0,
-                .min = -96,
-                .max = 24,
-                .unit = "db",
-            }) },
-            .pan => .{ .float = .init(.{
-                .name = "Pan",
-                .default = 0,
-                .min = -1,
-                .max = 1,
-            }) },
-            .panning_law => zigplug.parameters.choice(PanningLaw, .{
-                .name = "Panning law",
-                .default = .constant_power,
-                .map = .initComptime(.{
-                    .{ "Linear", .linear },
-                    .{ "Constant power", .constant_power },
-                    .{ "Square root", .square_root },
-                }),
-            }),
-        };
-    }
+    bypass: zigplug.Parameter = .bypass,
+
+    gain: zigplug.Parameter = .{ .float = .init(.{
+        .name = "Gain",
+        .default = 0,
+        .min = -96,
+        .max = 24,
+        .unit = "db",
+    }) },
+
+    pan: zigplug.Parameter = .{ .float = .init(.{
+        .name = "Pan",
+        .default = 0,
+        .min = -1,
+        .max = 1,
+    }) },
+
+    panning_law: zigplug.Parameter = zigplug.parameters.choice(PanningLaw, .{
+        .name = "Panning law",
+        .default = .constant_power,
+        .map = .initComptime(.{
+            .{ "Linear", .linear },
+            .{ "Constant power", .constant_power },
+            .{ "Square root", .square_root },
+        }),
+    }),
 };
 
 pub const desc: zigplug.Description = .{
@@ -76,20 +70,20 @@ pub fn deinit(self: *@This()) void {
     gpa.allocator().destroy(self);
 }
 
-pub fn process(self: *@This(), block: zigplug.ProcessBlock) !void {
+pub fn process(self: *@This(), block: zigplug.ProcessBlock, params: *const Parameters) !void {
     _ = self;
 
-    if (block.getParam(Parameters.bypass).bool.get()) {
+    if (params.bypass.bool.get()) {
         for (block.in, 0..) |in, block_i| {
             for (in, 0..) |channel, channel_i|
                 @memcpy(block.out[block_i][channel_i], channel);
         }
     } else {
-        const gain: f32 = @floatCast(std.math.pow(f64, 2, block.getParam(Parameters.gain).float.get() / 6));
+        const gain: f32 = @floatCast(std.math.pow(f64, 2, params.gain.float.get() / 6));
 
         const left_gain: f32, const right_gain: f32 = blk: {
-            const pan: f32 = @floatCast((block.getParam(Parameters.pan).float.get() + 1) / 2);
-            switch (@as(Parameters.PanningLaw, @enumFromInt(block.getParam(Parameters.panning_law).uint.get()))) {
+            const pan: f32 = @floatCast((params.pan.float.get() + 1) / 2);
+            switch (@as(Parameters.PanningLaw, @enumFromInt(params.panning_law.uint.get()))) {
                 .linear => break :blk .{ 1 - pan, pan },
                 .constant_power => break :blk .{
                     std.math.cos(0.5 * std.math.pi * pan),

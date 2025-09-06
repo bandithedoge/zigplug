@@ -46,7 +46,7 @@ pub fn deinit(self: *@This()) void {
     gpa.allocator().destroy(self);
 }
 
-pub fn process(self: *@This(), block: zigplug.ProcessBlock) !void {
+pub fn process(self: *@This(), block: zigplug.ProcessBlock, _: *const anyopaque) !void {
     self.sample_rate = @floatFromInt(block.sample_rate);
 
     var event: ?zigplug.NoteEvent = null;

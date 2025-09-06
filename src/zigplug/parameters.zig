@@ -119,6 +119,16 @@ pub const Parameter = union(ParameterType) {
     int: Inner(i64),
     uint: Inner(u64),
     bool: Inner(bool),
+
+    /// In some plugin APIs the bypass parameter gets special treatment as it is merged with the host's bypass button.
+    /// Create a boolean parameter with `parameters.Parameter` and set `.special = .bypass` if you want to customize the name and default value.
+    pub const bypass = Parameter{ .bool = .init(.{
+        .name = "Bypass",
+        .default = false,
+        .min = false,
+        .max = true,
+        .special = .bypass,
+    }) };
 };
 
 // TODO: fuzz testing parameter values
@@ -217,16 +227,6 @@ test "unit and custom formatting" {
     int_param.int.set(-1200);
     try std.testing.expectEqualStrings("-1200 c", try int_param.int.format(allocator, int_param.int.get()));
 }
-
-/// In some plugin APIs the bypass parameter gets special treatment as it is merged with the host's bypass button.
-/// Create a boolean parameter with `parameters.Parameter` and set `.special = .bypass` if you want to customize the name and default value.
-pub const bypass = Parameter{ .bool = .init(.{
-    .name = "Bypass",
-    .default = false,
-    .min = false,
-    .max = true,
-    .special = .bypass,
-}) };
 
 /// Subset of `Options`
 pub fn ChoiceOptions(T: type) type {

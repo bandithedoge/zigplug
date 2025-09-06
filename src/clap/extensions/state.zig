@@ -16,7 +16,7 @@ pub fn extension(comptime _: type) *const c.clap_plugin_state {
             const data = clap.Data.cast(clap_plugin);
 
             for (data.parameters.?) |parameter| {
-                switch (parameter) {
+                switch (parameter.*) {
                     inline else => |p| {
                         const value = p.get();
                         const size = @sizeOf(@TypeOf(value));
@@ -37,7 +37,7 @@ pub fn extension(comptime _: type) *const c.clap_plugin_state {
         pub fn load(clap_plugin: [*c]const c.clap_plugin, stream: [*c]const c.clap_istream) callconv(.c) bool {
             const data = clap.Data.cast(clap_plugin);
 
-            for (data.parameters.?) |*parameter| switch (parameter.*) {
+            for (data.parameters.?) |parameter| switch (parameter.*) {
                 inline else => |*p| {
                     var value = p.get();
                     const size = @sizeOf(@TypeOf(value));

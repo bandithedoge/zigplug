@@ -9,7 +9,7 @@ pub const Data = struct {
     plugin_data: zigplug.PluginData,
 
     process_block: zigplug.ProcessBlock,
-    parameters: ?[]zigplug.Parameter = null,
+    parameters: ?[]*zigplug.Parameter = null,
 
     events: ?struct {
         i: u32,
@@ -63,7 +63,7 @@ pub fn processEvent(comptime Plugin: type, clap_plugin: *const c.clap_plugin_t, 
             std.debug.assert(data.parameters != null);
 
             const value_event: *const c.clap_event_param_value = @ptrCast(@alignCast(event));
-            const param = &data.parameters.?[value_event.param_id];
+            const param = data.parameters.?[value_event.param_id];
 
             switch (param.*) {
                 inline else => |*p| {
@@ -85,18 +85,31 @@ fn ClapPlugin(comptime Plugin: type) type {
             // TODO: move parameter initialization to a zigplug function
             if (Plugin.desc.Parameters) |Parameters| {
                 const data = Data.cast(clap_plugin);
+                const allocator = data.plugin_data.plugin.allocator;
 
-                const fields = @typeInfo(Parameters).@"enum".fields;
-                var parameters = data.plugin_data.plugin.allocator.alloc(zigplug.Parameter, fields.len) catch {
-                    log.err("parameter allocation failed", .{});
+                const parameters = allocator.create(Parameters) catch {
+                    log.err("Failed to allocate parameters", .{});
                     return false;
                 };
-                inline for (0..fields.len) |i| {
-                    parameters[i] = Parameters.setup(@enumFromInt(i));
+                parameters.* = .{};
+                const fields = @typeInfo(Parameters).@"struct".fields;
+
+                var parameters_array = allocator.alloc(*zigplug.Parameter, fields.len) catch {
+                    log.err("Failed to allocate parameters", .{});
+                    return false;
+                };
+
+                inline for (fields, 0..) |field, i| {
+                    if (field.type != zigplug.Parameter)
+                        @compileError("Parameter '" ++ field.name ++ "' is not of type 'zigplug.Parameter'");
+                    if (field.default_value_ptr == null)
+                        @compileError("Parameter '" ++ field.name ++ "' has no default value");
+
+                    parameters_array[i] = &@field(parameters, field.name);
                 }
 
-                data.parameters = parameters;
-                data.process_block.parameters = parameters;
+                data.parameters = parameters_array;
+                data.plugin_data.plugin.parameters = parameters;
             }
 
             return true;
@@ -106,7 +119,15 @@ fn ClapPlugin(comptime Plugin: type) type {
             log.debug("destroy()", .{});
 
             const data = Data.cast(clap_plugin);
+            const allocator = data.plugin_data.plugin.allocator;
+
             data.plugin_data.plugin.deinit();
+
+            if (Plugin.desc.Parameters) |Parameters| {
+                allocator.free(data.parameters.?);
+                const ptr: *Parameters = @ptrCast(@alignCast(data.plugin_data.plugin.parameters));
+                allocator.destroy(ptr);
+            }
         }
 
         fn activate(clap_plugin: [*c]const c.clap_plugin, sample_rate: f64, min_size: u32, max_size: u32) callconv(.c) bool {
@@ -203,7 +224,7 @@ fn ClapPlugin(comptime Plugin: type) type {
                     .size = clap_process.*.in_events.*.size.?(clap_process.*.in_events),
                 };
 
-                data.plugin_data.plugin.process(data.process_block) catch
+                data.plugin_data.plugin.process(data.process_block, data.plugin_data.plugin.parameters) catch
                     return c.CLAP_PROCESS_ERROR;
             }
 
