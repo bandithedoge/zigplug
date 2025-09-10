@@ -36,17 +36,13 @@ sample_rate: f32 = 0,
 note: ?u8 = null,
 gain: f32 = 0,
 
-pub fn init() !*@This() {
-    const self = try gpa.allocator().create(@This());
-    self.* = .{};
-    return self;
+pub fn init() !@This() {
+    return .{};
 }
 
-pub fn deinit(self: *@This()) void {
-    gpa.allocator().destroy(self);
-}
+pub fn deinit(_: *@This()) void {}
 
-pub fn process(self: *@This(), block: zigplug.ProcessBlock, _: *const anyopaque) !void {
+pub fn process(self: *@This(), block: zigplug.ProcessBlock) !void {
     self.sample_rate = @floatFromInt(block.sample_rate);
 
     var event: ?zigplug.NoteEvent = null;

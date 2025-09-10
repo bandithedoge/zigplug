@@ -25,7 +25,7 @@ const Parameters = struct {
         .max = 1,
     }) },
 
-    panning_law: zigplug.Parameter = zigplug.parameters.choice(PanningLaw, .{
+    panning_law: zigplug.Parameter = .choice(PanningLaw, .{
         .name = "Panning law",
         .default = .constant_power,
         .map = .initComptime(.{
@@ -37,8 +37,8 @@ const Parameters = struct {
 };
 
 pub const desc: zigplug.Description = .{
-    .id = "com.bandithedoge.zigplug_minimal_example",
-    .name = "zigplug minimal",
+    .id = "com.bandithedoge.zigplug_gain_example",
+    .name = "zigplug gain example",
     .vendor = "bandithedoge",
     .url = "https://bandithedoge.com/zigplug",
     .version = "0.1.0",
@@ -60,15 +60,11 @@ pub fn plugin() !zigplug.Plugin {
     return try zigplug.Plugin.new(@This(), gpa.allocator());
 }
 
-pub fn init() !*@This() {
-    const self = try gpa.allocator().create(@This());
-    self.* = .{};
-    return self;
+pub fn init() !@This() {
+    return .{};
 }
 
-pub fn deinit(self: *@This()) void {
-    gpa.allocator().destroy(self);
-}
+pub fn deinit(_: *@This()) void {}
 
 pub fn process(self: *@This(), block: zigplug.ProcessBlock, params: *const Parameters) !void {
     _ = self;

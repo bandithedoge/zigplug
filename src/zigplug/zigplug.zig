@@ -7,8 +7,7 @@ pub const log = std.log.scoped(.zigplug);
 
 pub const NoteEvent = struct {
     type: enum { on, off, choke, end },
-    /// From C-1 to G9.
-    /// 60 is middle C, `null` means wildcard
+    /// From C-1 to G9. 60 is middle C, `null` means wildcard
     note: ?u8,
     channel: ?u5,
     timing: u32,
@@ -64,6 +63,7 @@ pub const NotePorts = struct {
     out: []const Port,
 };
 
+// TODO: break out CLAP-specific descriptor fields
 pub const Description = struct {
     id: [:0]const u8,
     name: [:0]const u8,
@@ -84,6 +84,8 @@ pub const Description = struct {
 // TODO: make descriptor a member here
 pub const Plugin = struct {
     context: *anyopaque,
+    context_size: usize,
+    context_align: u16,
     vtable: struct {
         // TODO: verify types
         deinit: *const fn (*anyopaque) void,
@@ -93,10 +95,14 @@ pub const Plugin = struct {
     allocator: std.mem.Allocator,
     parameters: ?*anyopaque = null,
 
-    // TODO: allow setting an allocator *after* init; don't require the user to allocate and return a pointer
+    // TODO: allow setting an allocator *after* init
     pub fn new(comptime T: type, allocator: std.mem.Allocator) !Plugin {
+        const context = try allocator.create(T);
+        context.* = try T.init();
         return .{
-            .context = try T.init(),
+            .context = context,
+            .context_size = @sizeOf(T),
+            .context_align = @alignOf(T),
             .vtable = .{
                 .deinit = @ptrCast(&T.deinit),
                 .process = @ptrCast(&T.process),
@@ -107,6 +113,9 @@ pub const Plugin = struct {
 
     pub inline fn deinit(self: *Plugin) void {
         self.vtable.deinit(self.context);
+
+        const bytes: [*]u8 = @ptrCast(self.context);
+        self.allocator.rawFree(bytes[0..self.context_size], .fromByteUnits(self.context_align), @returnAddress());
     }
 
     pub inline fn process(self: *Plugin, block: ProcessBlock, params: ?*const anyopaque) !void {

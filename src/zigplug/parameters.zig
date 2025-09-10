@@ -129,6 +129,69 @@ pub const Parameter = union(ParameterType) {
         .max = true,
         .special = .bypass,
     }) };
+
+    /// Subset of `Options`
+    pub fn ChoiceOptions(T: type) type {
+        return struct {
+            name: [:0]const u8,
+            default: T,
+            automatable: bool = true,
+            /// Map of pretty strings to enum, used for formatting human-readable parameter values.
+            /// Consider initializing with `std.StaticStringMap(T).initComptime`.
+            map: ?std.StaticStringMap(T) = null,
+        };
+    }
+
+    /// Wrap an enum into an integer parameter with automatic formatting
+    pub fn choice(comptime T: type, comptime options: ChoiceOptions(T)) Parameter {
+        switch (@typeInfo(T)) {
+            .@"enum" => |info| {
+                const callbacks = struct {
+                    pub fn format(allocator: std.mem.Allocator, value: u64, _: ?[]const u8) ![]const u8 {
+                        if (value >= @typeInfo(T).@"enum".fields.len) {
+                            zigplug.log.err("invalid value for enum {s}: {}", .{ @typeName(T), value });
+                            return error.InvalidEnum;
+                        }
+                        const name = blk: {
+                            if (options.map) |map|
+                                for (map.keys(), map.values()) |k, v|
+                                    if (value == @intFromEnum(v))
+                                        break :blk k;
+                            break :blk std.enums.tagName(T, @enumFromInt(value)).?;
+                        };
+                        return std.fmt.allocPrint(allocator, "{s}", .{name});
+                    }
+
+                    pub fn parse(value: []const u8, _: ?[]const u8) error{InvalidEnum}!u64 {
+                        if (options.map) |map|
+                            if (map.get(value)) |v|
+                                return @intFromEnum(v);
+
+                        inline for (info.fields) |field| {
+                            if (std.mem.eql(u8, value, field.name))
+                                return field.value;
+                        }
+
+                        zigplug.log.err("invalid value for enum {s}: '{s}'", .{ @typeName(T), value });
+                        return error.InvalidEnum;
+                    }
+                };
+
+                return .{
+                    .uint = .init(.{
+                        .name = options.name,
+                        .default = @intFromEnum(options.default),
+                        .min = 0,
+                        .max = info.fields.len - 1,
+                        .automatable = options.automatable,
+                        .format = callbacks.format,
+                        .parse = callbacks.parse,
+                    }),
+                };
+            },
+            else => @compileError("Choice type must be an enum, got " ++ @typeName(T)),
+        }
+    }
 };
 
 // TODO: fuzz testing parameter values
@@ -195,8 +258,8 @@ test "unit and custom formatting" {
             .max = 12 * 100 * 5, // +5 octaves
             .unit = " c",
             .format = struct {
-                pub fn f(ally: std.mem.Allocator, value: i64, unit: ?[]const u8) ![]const u8 {
-                    return std.fmt.allocPrint(ally, "{s}{}{s}", .{ switch (std.math.sign(value)) {
+                pub fn f(alloc: std.mem.Allocator, value: i64, unit: ?[]const u8) ![]const u8 {
+                    return std.fmt.allocPrint(alloc, "{s}{}{s}", .{ switch (std.math.sign(value)) {
                         -1, 0 => "",
                         1 => "+",
                         else => unreachable,
@@ -228,76 +291,14 @@ test "unit and custom formatting" {
     try std.testing.expectEqualStrings("-1200 c", try int_param.int.format(allocator, int_param.int.get()));
 }
 
-/// Subset of `Options`
-pub fn ChoiceOptions(T: type) type {
-    return struct {
-        name: [:0]const u8,
-        default: T,
-        automatable: bool = true,
-        /// Map of pretty strings to enum, used for formatting human-readable parameter values.
-        /// Consider initializing with `std.StaticStringMap(T).initComptime`.
-        map: ?std.StaticStringMap(T) = null,
-    };
-}
-
-pub fn choice(comptime T: type, comptime options: ChoiceOptions(T)) Parameter {
-    switch (@typeInfo(T)) {
-        .@"enum" => |info| {
-            const callbacks = struct {
-                pub fn format(allocator: std.mem.Allocator, value: u64, _: ?[]const u8) ![]const u8 {
-                    if (value >= @typeInfo(T).@"enum".fields.len) {
-                        zigplug.log.err("invalid value for enum {s}: {}", .{ @typeName(T), value });
-                        return error.InvalidEnum;
-                    }
-                    const name = blk: {
-                        if (options.map) |map|
-                            for (map.keys(), map.values()) |k, v|
-                                if (value == @intFromEnum(v))
-                                    break :blk k;
-                        break :blk std.enums.tagName(T, @enumFromInt(value)).?;
-                    };
-                    return std.fmt.allocPrint(allocator, "{s}", .{name});
-                }
-
-                pub fn parse(value: []const u8, _: ?[]const u8) error{InvalidEnum}!u64 {
-                    if (options.map) |map|
-                        if (map.get(value)) |v|
-                            return @intFromEnum(v);
-
-                    inline for (info.fields) |field| {
-                        if (std.mem.eql(u8, value, field.name))
-                            return field.value;
-                    }
-
-                    zigplug.log.err("invalid value for enum {s}: '{s}'", .{ @typeName(T), value });
-                    return error.InvalidEnum;
-                }
-            };
-
-            return .{
-                .uint = .init(.{
-                    .name = options.name,
-                    .default = @intFromEnum(options.default),
-                    .min = 0,
-                    .max = info.fields.len - 1,
-                    .automatable = options.automatable,
-                    .format = callbacks.format,
-                    .parse = callbacks.parse,
-                }),
-            };
-        },
-        else => @compileError("Choice type must be an enum, got " ++ @typeName(T)),
-    }
-}
-
-test choice {
+test "choice parameter" {
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena.deinit();
     const allocator = arena.allocator();
 
     const T = enum { one, two, three };
 
-    var choice_param = choice(T, .{
+    var choice_param = Parameter.choice(T, .{
         .name = "Choice parameter",
         .default = .one,
     });
@@ -311,7 +312,7 @@ test choice {
         try choice_param.uint.format(allocator, choice_param.uint.get()),
     );
 
-    var choice_param_custom_fmt = choice(T, .{
+    var choice_param_custom_fmt = Parameter.choice(T, .{
         .name = "Choice parameter with custom formatting",
         .default = .one,
         .map = .initComptime(.{
