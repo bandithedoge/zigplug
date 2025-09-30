@@ -45,27 +45,30 @@ pub fn deinit(_: *@This()) void {}
 pub fn process(self: *@This(), block: zigplug.ProcessBlock) !void {
     self.sample_rate = @floatFromInt(block.sample_rate);
 
-    var event: ?zigplug.NoteEvent = null;
+    var start: u32 = 0;
+    var end: u32 = @intCast(block.samples);
 
-    for (0..block.samples) |i| {
-        while (true) {
-            event = block.nextNoteEvent();
-            if (event) |e| {
-                std.debug.print("{any} {?}\n", .{ e.type, e.note });
-                if (e.timing == i)
-                    switch (e.type) {
-                        .on => {
-                            self.note = e.note;
-                            self.gain = @floatCast(e.velocity);
-                        },
-                        .off => self.note = null,
-                        else => {},
-                    }
-                else
-                    break;
-            } else break;
+    while (block.nextNoteEvent()) |event| {
+        std.debug.print("{any}: {?} at {}\n", .{ event.type, event.note, event.timing });
+        switch (event.type) {
+            .on => {
+                self.note = event.note;
+                self.gain = @floatCast(event.velocity);
+            },
+            .off => self.note = null,
+            else => {},
         }
 
+        end = event.timing;
+        self.fillBuffer(&block, start, end);
+        start = end;
+    }
+
+    self.fillBuffer(&block, start, end);
+}
+
+inline fn fillBuffer(self: *@This(), block: *const zigplug.ProcessBlock, start: u32, end: u32) void {
+    for (start..end) |i| {
         for (block.out) |port| {
             for (port) |channel| {
                 channel[i] = if (self.note) |n| self.sine(midiToFrequency(n)) * self.gain else 0;
