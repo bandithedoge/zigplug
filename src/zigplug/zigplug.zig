@@ -23,7 +23,6 @@ pub const ProcessBlock = struct {
     samples: usize = 0,
     sample_rate: u32 = 0,
 
-    // TODO: should this be an actual iterator?
     pub fn nextNoteEvent(self: *const ProcessBlock) ?NoteEvent {
         return self.fn_nextNoteEvent(self.context);
     }
@@ -79,13 +78,23 @@ pub const Description = struct {
     note_ports: ?NotePorts = null,
 
     Parameters: ?type = null,
+
+    /// When enabled, the signal is split into smaller buffers of different sizes so that every parameter change is
+    /// accounted for. This slightly increases CPU usage and potentially reduces the effectiveness of optimizations like
+    /// SIMD in return for more accurate parameter automation.
+    ///
+    /// Has no effect when `Description.Parameters` is null.
+    // TODO: set this for individual parameters
+    sample_accurate_automation: bool = false,
 };
 
 // TODO: make descriptor a member here
 pub const Plugin = struct {
     context: *anyopaque,
+    // you can't just free an opaque pointer with unknown size and alignment so we keep that here
     context_size: usize,
     context_align: u16,
+
     vtable: struct {
         // TODO: verify types
         deinit: *const fn (*anyopaque) void,

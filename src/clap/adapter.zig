@@ -12,16 +12,18 @@ pub const Data = struct {
     parameters: ?[]*zigplug.Parameter = null,
 
     events: ?struct {
-        i: u32,
+        i: u32 = 0,
         size: u32,
         clap: [*c]const c.clap_input_events_t,
+        start: u32,
+        end: u32,
     } = null,
 
     host: [*c]const c.clap_host_t = null,
     host_timer_support: [*c]const c.clap_host_timer_support_t = null,
     host_gui: [*c]const c.clap_host_gui_t = null,
 
-    pub inline fn cast(ptr: [*c]const c.clap_plugin_t) *Data {
+    pub inline fn fromClap(ptr: [*c]const c.clap_plugin_t) *Data {
         return @ptrCast(@alignCast(ptr.*.plugin_data));
     }
 
@@ -30,13 +32,21 @@ pub const Data = struct {
         while (true) {
             if (events.i >= events.size)
                 return null;
-            const e = events.clap.*.get.?(events.clap, events.i);
+
+            const event = events.clap.*.get.?(events.clap, events.i);
+
+            if (event.*.time >= events.end) return null;
+            if (event.*.time < events.start) {
+                @branchHint(.cold);
+                return null;
+            }
+
             events.i += 1;
-            switch (e.*.type) {
+            switch (event.*.type) {
                 c.CLAP_EVENT_NOTE_ON...c.CLAP_EVENT_NOTE_END => {
-                    const note_event: *const c.clap_event_note_t = @ptrCast(@alignCast(e));
+                    const note_event: *const c.clap_event_note_t = @ptrCast(@alignCast(event));
                     return .{
-                        .type = switch (e.*.type) {
+                        .type = switch (event.*.type) {
                             c.CLAP_EVENT_NOTE_ON => .on,
                             c.CLAP_EVENT_NOTE_OFF => .off,
                             c.CLAP_EVENT_NOTE_CHOKE => .choke,
@@ -53,10 +63,62 @@ pub const Data = struct {
             }
         }
     }
+
+    pub fn process(self: *Data, comptime Plugin: type, clap_process: [*c]const c.clap_process, start: u32, end: u32) !void {
+        const ports = Plugin.desc.audio_ports.?;
+        const inputs = ports.in.len;
+        const outputs = ports.out.len;
+
+        std.debug.assert(clap_process.*.audio_inputs_count == inputs);
+        std.debug.assert(clap_process.*.audio_outputs_count == outputs);
+
+        var input_buffers: [inputs][][]f32 = undefined;
+        inline for (0..inputs) |i| {
+            const input = clap_process.*.audio_inputs[i];
+            const channels = ports.in[i].channels;
+
+            std.debug.assert(input.channel_count == channels);
+
+            var channel_buffers: [channels][]f32 = undefined;
+
+            inline for (0..channels) |chan|
+                channel_buffers[chan] = input.data32[chan][start..end];
+
+            input_buffers[i] = &channel_buffers;
+        }
+
+        var output_buffers: [outputs][][]f32 = undefined;
+        inline for (0..outputs) |i| {
+            const output = clap_process.*.audio_outputs[i];
+            const channels = ports.out[i].channels;
+
+            std.debug.assert(output.channel_count == channels);
+
+            var channel_buffers: [channels][]f32 = undefined;
+
+            inline for (0..channels) |chan|
+                channel_buffers[chan] = output.data32[chan][start..end];
+
+            output_buffers[i] = &channel_buffers;
+        }
+
+        self.process_block.in = &input_buffers;
+        self.process_block.out = &output_buffers;
+        self.process_block.samples = end - start;
+
+        self.events = .{
+            .clap = clap_process.*.in_events,
+            .size = clap_process.*.in_events.*.size.?(clap_process.*.in_events),
+            .start = start,
+            .end = end,
+        };
+
+        try self.plugin_data.plugin.process(self.process_block, self.plugin_data.plugin.parameters);
+    }
 };
 
 pub fn processEvent(comptime Plugin: type, clap_plugin: *const c.clap_plugin_t, event: *const c.clap_event_header_t) void {
-    const data = Data.cast(clap_plugin);
+    const data = Data.fromClap(clap_plugin);
     switch (event.type) {
         c.CLAP_EVENT_PARAM_VALUE => {
             std.debug.assert(Plugin.desc.Parameters != null);
@@ -84,7 +146,7 @@ fn ClapPlugin(comptime Plugin: type) type {
 
             // TODO: move parameter initialization to a zigplug function
             if (Plugin.desc.Parameters) |Parameters| {
-                const data = Data.cast(clap_plugin);
+                const data = Data.fromClap(clap_plugin);
                 const allocator = data.plugin_data.plugin.allocator;
 
                 const parameters = allocator.create(Parameters) catch {
@@ -118,7 +180,7 @@ fn ClapPlugin(comptime Plugin: type) type {
         fn destroy(clap_plugin: [*c]const c.clap_plugin) callconv(.c) void {
             log.debug("destroy()", .{});
 
-            const data = Data.cast(clap_plugin);
+            const data = Data.fromClap(clap_plugin);
             const allocator = data.plugin_data.plugin.allocator;
 
             data.plugin_data.plugin.deinit();
@@ -133,7 +195,7 @@ fn ClapPlugin(comptime Plugin: type) type {
         fn activate(clap_plugin: [*c]const c.clap_plugin, sample_rate: f64, min_size: u32, max_size: u32) callconv(.c) bool {
             log.debug("activate({}, {}, {})", .{ sample_rate, min_size, max_size });
 
-            const data = Data.cast(clap_plugin);
+            const data = Data.fromClap(clap_plugin);
 
             data.plugin_data.sample_rate = @intFromFloat(sample_rate);
             data.process_block.sample_rate = data.plugin_data.sample_rate;
@@ -162,71 +224,53 @@ fn ClapPlugin(comptime Plugin: type) type {
         }
 
         fn process(clap_plugin: [*c]const c.clap_plugin, clap_process: [*c]const c.clap_process_t) callconv(.c) c.clap_process_status {
-            const data = Data.cast(clap_plugin);
+            const data = Data.fromClap(clap_plugin);
 
             const samples = clap_process.*.frames_count;
 
+            var start: u32 = 0;
+            var end: u32 = samples;
+
             const event_count = clap_process.*.in_events.*.size.?(clap_process.*.in_events);
-            if (event_count != 0)
-                for (0..event_count) |event_i|
-                    for (0..samples) |i| {
-                        const event = clap_process.*.in_events.*.get.?(clap_process.*.in_events, @intCast(event_i));
 
-                        if (event.*.time != i) break;
+            var event_i: u32 = 0;
 
-                        processEvent(Plugin, clap_plugin, event);
-                    };
+            while (event_i < event_count) {
+                const event = clap_process.*.in_events.*.get.?(clap_process.*.in_events, event_i);
+                event_i += 1;
+                switch (event.*.type) {
+                    c.CLAP_EVENT_PARAM_VALUE => {
+                        const value_event: *const c.clap_event_param_value = @ptrCast(@alignCast(event));
+                        const param = data.parameters.?[value_event.param_id];
 
-            // render audio
-            if (Plugin.desc.audio_ports) |ports| {
-                const inputs = ports.in.len;
-                const outputs = ports.out.len;
+                        if (comptime Plugin.desc.sample_accurate_automation) {
+                            end = value_event.header.time;
 
-                std.debug.assert(clap_process.*.audio_inputs_count == inputs);
-                std.debug.assert(clap_process.*.audio_outputs_count == outputs);
+                            data.process(Plugin, clap_process, start, end) catch |e| {
+                                log.err("error while processing: {}", .{e});
+                                return c.CLAP_PROCESS_ERROR;
+                            };
 
-                var input_buffers: [inputs][][]f32 = undefined;
-                inline for (0..inputs) |i| {
-                    const input = clap_process.*.audio_inputs[i];
-                    const channels = ports.in[i].channels;
+                            start = end;
+                            end = samples;
+                        }
 
-                    std.debug.assert(input.channel_count == channels);
-
-                    var channel_buffers: [channels][]f32 = undefined;
-
-                    inline for (0..channels) |chan|
-                        channel_buffers[chan] = input.data32[chan][0..samples];
-
-                    input_buffers[i] = &channel_buffers;
+                        switch (param.*) {
+                            inline else => |*p| {
+                                const value = @TypeOf(p.*).fromFloat(value_event.value);
+                                p.set(value);
+                                zigplug.log.debug("parameter '{s}' = {any} at {}", .{ p.options.name, value, value_event.header.time });
+                            },
+                        }
+                    },
+                    else => continue,
                 }
-
-                var output_buffers: [outputs][][]f32 = undefined;
-                inline for (0..outputs) |i| {
-                    const output = clap_process.*.audio_outputs[i];
-                    const channels = ports.out[i].channels;
-
-                    std.debug.assert(output.channel_count == channels);
-
-                    var channel_buffers: [channels][]f32 = undefined;
-
-                    inline for (0..channels) |chan|
-                        channel_buffers[chan] = output.data32[chan][0..samples];
-
-                    output_buffers[i] = &channel_buffers;
-                }
-
-                data.process_block.in = &input_buffers;
-                data.process_block.out = &output_buffers;
-                data.process_block.samples = clap_process.*.frames_count;
-                data.events = .{
-                    .clap = clap_process.*.in_events,
-                    .i = 0,
-                    .size = clap_process.*.in_events.*.size.?(clap_process.*.in_events),
-                };
-
-                data.plugin_data.plugin.process(data.process_block, data.plugin_data.plugin.parameters) catch
-                    return c.CLAP_PROCESS_ERROR;
             }
+
+            data.process(Plugin, clap_process, start, end) catch |e| {
+                log.err("error while processing: {}", .{e});
+                return c.CLAP_PROCESS_ERROR;
+            };
 
             return c.CLAP_PROCESS_CONTINUE;
         }
@@ -342,7 +386,7 @@ fn PluginFactory(comptime Plugin: type) type {
                 return null;
             };
 
-            const plugin_data = Data.cast(plugin_class);
+            const plugin_data = Data.fromClap(plugin_class);
             plugin_data.* = .{
                 .plugin_data = .{
                     .plugin = plugin,

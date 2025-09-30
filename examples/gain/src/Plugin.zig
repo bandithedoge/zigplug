@@ -53,7 +53,10 @@ pub const desc: zigplug.Description = .{
             .channels = 2,
         }},
     },
+
     .Parameters = Parameters,
+
+    .sample_accurate_automation = true,
 };
 
 pub fn plugin() !zigplug.Plugin {

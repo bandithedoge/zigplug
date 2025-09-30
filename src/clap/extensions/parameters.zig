@@ -18,7 +18,7 @@ pub fn extension(comptime Plugin: type) *const c.clap_plugin_params_t {
             if (index > @typeInfo(Plugin.desc.Parameters.?).@"struct".fields.len)
                 return false;
 
-            const data = clap.Data.cast(clap_plugin);
+            const data = clap.Data.fromClap(clap_plugin);
             const param = data.parameters.?[index].*;
 
             switch (param) {
@@ -53,7 +53,7 @@ pub fn extension(comptime Plugin: type) *const c.clap_plugin_params_t {
             if (id >= std.meta.fields(Plugin.desc.Parameters.?).len)
                 return false;
 
-            const data = clap.Data.cast(clap_plugin);
+            const data = clap.Data.fromClap(clap_plugin);
             const param = data.parameters.?[id].*;
             out.?.* = switch (param) {
                 inline else => |p| @TypeOf(p).toFloat(p.get()),
@@ -66,7 +66,7 @@ pub fn extension(comptime Plugin: type) *const c.clap_plugin_params_t {
             if (id >= std.meta.fields(Plugin.desc.Parameters.?).len)
                 return false;
 
-            const data = clap.Data.cast(clap_plugin);
+            const data = clap.Data.fromClap(clap_plugin);
             const param = data.parameters.?[id].*;
 
             const formatted = switch (param) {
@@ -94,7 +94,7 @@ pub fn extension(comptime Plugin: type) *const c.clap_plugin_params_t {
             if (id >= std.meta.fields(Plugin.desc.Parameters.?).len)
                 return false;
 
-            const data = clap.Data.cast(clap_plugin);
+            const data = clap.Data.fromClap(clap_plugin);
 
             const param = data.parameters.?[id].*;
             const text = std.mem.span(value_text);

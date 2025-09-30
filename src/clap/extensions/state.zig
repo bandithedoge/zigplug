@@ -13,7 +13,7 @@ const log = std.log.scoped(.zigplug_clap_state);
 pub fn extension(comptime _: type) *const c.clap_plugin_state {
     const state = struct {
         pub fn save(clap_plugin: [*c]const c.clap_plugin, stream: [*c]const c.clap_ostream) callconv(.c) bool {
-            const data = clap.Data.cast(clap_plugin);
+            const data = clap.Data.fromClap(clap_plugin);
 
             for (data.parameters.?) |parameter| {
                 switch (parameter.*) {
@@ -35,7 +35,7 @@ pub fn extension(comptime _: type) *const c.clap_plugin_state {
         }
 
         pub fn load(clap_plugin: [*c]const c.clap_plugin, stream: [*c]const c.clap_istream) callconv(.c) bool {
-            const data = clap.Data.cast(clap_plugin);
+            const data = clap.Data.fromClap(clap_plugin);
 
             for (data.parameters.?) |parameter| switch (parameter.*) {
                 inline else => |*p| {
