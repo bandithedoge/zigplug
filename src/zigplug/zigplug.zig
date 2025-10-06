@@ -63,7 +63,7 @@ pub const NotePorts = struct {
 };
 
 // TODO: break out CLAP-specific descriptor fields
-pub const Description = struct {
+pub const Meta = struct {
     id: [:0]const u8,
     name: [:0]const u8,
     vendor: [:0]const u8,
@@ -77,7 +77,7 @@ pub const Description = struct {
     audio_ports: ?AudioPorts = null,
     note_ports: ?NotePorts = null,
 
-    Parameters: ?type = null,
+    // Parameters: ?type = null,
 
     /// When enabled, the signal is split into smaller buffers of different sizes so that every parameter change is
     /// accounted for. This slightly increases CPU usage and potentially reduces the effectiveness of optimizations like
@@ -105,6 +105,7 @@ pub const Plugin = struct {
     parameters: ?*anyopaque = null,
 
     // TODO: allow setting an allocator *after* init
+    // TODO: validate parameters struct
     pub fn new(comptime T: type, allocator: std.mem.Allocator) !Plugin {
         const context = try allocator.create(T);
         context.* = try T.init();

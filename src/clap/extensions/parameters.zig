@@ -8,14 +8,14 @@ const std = @import("std");
 const log = std.log.scoped(.zigplug_clap_parameters);
 
 pub fn extension(comptime Plugin: type) *const c.clap_plugin_params_t {
-    std.debug.assert(Plugin.desc.Parameters != null);
+    std.debug.assert(@hasDecl(Plugin, "Parameters"));
     const parameters = struct {
         pub fn count(_: [*c]const c.clap_plugin_t) callconv(.c) u32 {
-            return std.meta.fields(Plugin.desc.Parameters.?).len;
+            return std.meta.fields(Plugin.Parameters).len;
         }
 
         pub fn get_info(clap_plugin: [*c]const c.clap_plugin_t, index: u32, info: [*c]c.clap_param_info_t) callconv(.c) bool {
-            if (index > @typeInfo(Plugin.desc.Parameters.?).@"struct".fields.len)
+            if (index > std.meta.fields(Plugin.Parameters).len)
                 return false;
 
             const data = clap.Data.fromClap(clap_plugin);
@@ -50,7 +50,7 @@ pub fn extension(comptime Plugin: type) *const c.clap_plugin_params_t {
         }
 
         pub fn get_value(clap_plugin: [*c]const c.clap_plugin_t, id: c.clap_id, out: [*c]f64) callconv(.c) bool {
-            if (id >= std.meta.fields(Plugin.desc.Parameters.?).len)
+            if (id >= std.meta.fields(Plugin.Parameters).len)
                 return false;
 
             const data = clap.Data.fromClap(clap_plugin);
@@ -63,7 +63,7 @@ pub fn extension(comptime Plugin: type) *const c.clap_plugin_params_t {
         }
 
         pub fn value_to_text(clap_plugin: [*c]const c.clap_plugin_t, id: c.clap_id, value: f64, out: [*c]u8, out_capacity: u32) callconv(.c) bool {
-            if (id >= std.meta.fields(Plugin.desc.Parameters.?).len)
+            if (id >= std.meta.fields(Plugin.Parameters).len)
                 return false;
 
             const data = clap.Data.fromClap(clap_plugin);
@@ -91,7 +91,7 @@ pub fn extension(comptime Plugin: type) *const c.clap_plugin_params_t {
         }
 
         pub fn text_to_value(clap_plugin: [*c]const c.clap_plugin_t, id: c.clap_id, value_text: [*c]const u8, out: [*c]f64) callconv(.c) bool {
-            if (id >= std.meta.fields(Plugin.desc.Parameters.?).len)
+            if (id >= std.meta.fields(Plugin.Parameters).len)
                 return false;
 
             const data = clap.Data.fromClap(clap_plugin);

@@ -5,7 +5,7 @@ const zigplug = @import("zigplug");
 // FIXME: global var bad
 var gpa = std.heap.GeneralPurposeAllocator(.{}).init;
 
-const Parameters = struct {
+pub const Parameters = struct {
     const PanningLaw = enum { linear, constant_power, square_root };
 
     bypass: zigplug.Parameter = .bypass,
@@ -36,7 +36,7 @@ const Parameters = struct {
     }),
 };
 
-pub const desc: zigplug.Description = .{
+pub const meta: zigplug.Meta = .{
     .id = "com.bandithedoge.zigplug_gain_example",
     .name = "zigplug gain example",
     .vendor = "bandithedoge",
@@ -53,8 +53,6 @@ pub const desc: zigplug.Description = .{
             .channels = 2,
         }},
     },
-
-    .Parameters = Parameters,
 
     .sample_accurate_automation = true,
 };

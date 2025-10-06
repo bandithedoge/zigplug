@@ -65,7 +65,7 @@ pub const Data = struct {
     }
 
     pub fn process(self: *Data, comptime Plugin: type, clap_process: [*c]const c.clap_process, start: u32, end: u32) !void {
-        const ports = Plugin.desc.audio_ports.?;
+        const ports = Plugin.meta.audio_ports.?;
         const inputs = ports.in.len;
         const outputs = ports.out.len;
 
@@ -121,7 +121,7 @@ pub fn processEvent(comptime Plugin: type, clap_plugin: *const c.clap_plugin_t, 
     const data = Data.fromClap(clap_plugin);
     switch (event.type) {
         c.CLAP_EVENT_PARAM_VALUE => {
-            std.debug.assert(Plugin.desc.Parameters != null);
+            std.debug.assert(@hasDecl(Plugin, "Parameters"));
             std.debug.assert(data.parameters != null);
 
             const value_event: *const c.clap_event_param_value = @ptrCast(@alignCast(event));
@@ -145,7 +145,8 @@ fn ClapPlugin(comptime Plugin: type) type {
             log.debug("init()", .{});
 
             // TODO: move parameter initialization to a zigplug function
-            if (Plugin.desc.Parameters) |Parameters| {
+            if (@hasDecl(Plugin, "Parameters")) {
+                const Parameters = Plugin.Parameters;
                 const data = Data.fromClap(clap_plugin);
                 const allocator = data.plugin_data.plugin.allocator;
 
@@ -185,7 +186,8 @@ fn ClapPlugin(comptime Plugin: type) type {
 
             data.plugin_data.plugin.deinit();
 
-            if (Plugin.desc.Parameters) |Parameters| {
+            if (@hasDecl(Plugin, "Parameters")) {
+                const Parameters = Plugin.Parameters;
                 allocator.free(data.parameters.?);
                 const ptr: *Parameters = @ptrCast(@alignCast(data.plugin_data.plugin.parameters));
                 allocator.destroy(ptr);
@@ -199,9 +201,6 @@ fn ClapPlugin(comptime Plugin: type) type {
 
             data.plugin_data.sample_rate = @intFromFloat(sample_rate);
             data.process_block.sample_rate = data.plugin_data.sample_rate;
-            if (comptime Plugin.desc.note_ports) |note_ports| {
-                if (note_ports.in.len != 0) {}
-            }
 
             return true;
         }
@@ -243,7 +242,7 @@ fn ClapPlugin(comptime Plugin: type) type {
                         const value_event: *const c.clap_event_param_value = @ptrCast(@alignCast(event));
                         const param = data.parameters.?[value_event.param_id];
 
-                        if (comptime Plugin.desc.sample_accurate_automation) {
+                        if (comptime Plugin.meta.sample_accurate_automation) {
                             end = value_event.header.time;
 
                             data.process(Plugin, clap_process, start, end) catch |e| {
@@ -353,14 +352,14 @@ fn PluginFactory(comptime Plugin: type) type {
                     .revision = c.CLAP_VERSION_REVISION,
                 },
 
-                .id = Plugin.desc.id,
-                .name = Plugin.desc.name,
-                .vendor = Plugin.desc.vendor,
-                .url = Plugin.desc.url,
-                .manual_url = Plugin.desc.manual_url orelse Plugin.desc.url,
-                .support_url = Plugin.desc.support_url orelse Plugin.desc.url,
-                .version = Plugin.desc.version,
-                .description = Plugin.desc.description,
+                .id = Plugin.meta.id,
+                .name = Plugin.meta.name,
+                .vendor = Plugin.meta.vendor,
+                .url = Plugin.meta.url,
+                .manual_url = Plugin.meta.manual_url orelse Plugin.meta.url,
+                .support_url = Plugin.meta.support_url orelse Plugin.meta.url,
+                .version = Plugin.meta.version,
+                .description = Plugin.meta.description,
                 // FIXME: segfault
                 // .features = features.constSlice().ptr,
                 .features = &[_][*c]const u8{null},

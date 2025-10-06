@@ -5,7 +5,7 @@ const zigplug = @import("zigplug");
 // FIXME: global var bad
 var gpa = std.heap.GeneralPurposeAllocator(.{}).init;
 
-pub const desc: zigplug.Description = .{
+pub const meta: zigplug.Meta = .{
     .id = "com.bandithedoge.zigplug_sine_example",
     .name = "zigplug sine example",
     .vendor = "bandithedoge",

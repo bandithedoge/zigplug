@@ -3,17 +3,17 @@ const zigplug = @import("zigplug");
 const c = @import("clap_c");
 
 pub inline fn getExtension(comptime Plugin: type, id: [:0]const u8) ?*const anyopaque {
-    if (comptime Plugin.desc.audio_ports != null) {
+    if (comptime Plugin.meta.audio_ports != null) {
         if (std.mem.eql(u8, id, &c.CLAP_EXT_AUDIO_PORTS))
             return @import("extensions/audio_ports.zig").extension(Plugin);
     }
 
-    if (comptime Plugin.desc.note_ports != null) {
+    if (comptime Plugin.meta.note_ports != null) {
         if (std.mem.eql(u8, id, &c.CLAP_EXT_NOTE_PORTS))
             return @import("extensions/note_ports.zig").extension(Plugin);
     }
 
-    if (comptime Plugin.desc.Parameters != null) {
+    if (@hasDecl(Plugin, "Parameters")) {
         if (std.mem.eql(u8, id, &c.CLAP_EXT_PARAMS))
             return @import("extensions/parameters.zig").extension(Plugin);
 
