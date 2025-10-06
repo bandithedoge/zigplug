@@ -1,7 +1,7 @@
 //! https://github.com/free-audio/clap/blob/main/include/clap/ext/params.h
 
 const c = @import("clap_c");
-const clap = @import("clap_adapter");
+const clap = @import("clap");
 
 const std = @import("std");
 

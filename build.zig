@@ -48,16 +48,16 @@ pub fn build(b: *std.Build) !void {
     check.dependOn(&lib.step);
 
     if (options.clap) {
-        const clap_adapter = b.addModule("clap_adapter", .{
+        const clap_module = b.addModule("clap", .{
             .target = target,
             .optimize = optimize,
-            .root_source_file = b.path("src/clap/adapter.zig"),
+            .root_source_file = b.path("src/clap/root.zig"),
             .imports = &.{
                 .{ .name = "zigplug", .module = zigplug },
                 .{ .name = "zigplug_options", .module = options_module },
             },
         });
-        clap_adapter.addImport("clap_adapter", clap_adapter);
+        clap_module.addImport("clap", clap_module);
 
         if (b.lazyDependency("clap", .{})) |clap_dep| {
             const clap_c = b.addTranslateC(.{
@@ -65,18 +65,18 @@ pub fn build(b: *std.Build) !void {
                 .target = target,
                 .optimize = optimize,
             });
-            clap_adapter.addAnonymousImport("clap_c", .{
+            clap_module.addAnonymousImport("clap_c", .{
                 .root_source_file = clap_c.getOutput(),
             });
         }
 
-        const clap_tests = b.addTest(.{ .root_module = clap_adapter });
+        const clap_tests = b.addTest(.{ .root_module = clap_module });
         const run_clap_tests = b.addRunArtifact(clap_tests);
         test_step.dependOn(&run_clap_tests.step);
 
         const clap_lib = b.addLibrary(.{
             .name = "zigplug_clap",
-            .root_module = clap_adapter,
+            .root_module = clap_module,
         });
         check.dependOn(&clap_lib.step);
     }
@@ -96,7 +96,7 @@ pub const Options = struct {
 /// If `options.install` is true, the result will be installed to `lib/clap/{options.name}.clap`
 pub fn addClap(b: *std.Build, options: Options) !*std.Build.Step.Compile {
     const entry = b.addWriteFile("entry.zig",
-        \\ export const clap_entry = @import("clap_adapter").clapEntry(@import("plugin_root"));
+        \\ export const clap_entry = @import("clap").clapEntry(@import("plugin_root"));
     );
 
     const lib = b.addLibrary(.{
@@ -110,7 +110,7 @@ pub fn addClap(b: *std.Build, options: Options) !*std.Build.Step.Compile {
             .root_source_file = entry.getDirectory().path(b, "entry.zig"),
             .imports = &.{
                 .{ .name = "plugin_root", .module = options.root_module },
-                .{ .name = "clap_adapter", .module = options.zigplug_dep.module("clap_adapter") },
+                .{ .name = "clap", .module = options.zigplug_dep.module("clap") },
             },
         }),
     });

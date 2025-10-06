@@ -5,7 +5,7 @@
 // - https://codeberg.org/hDS9HQLN/ztsl
 
 const c = @import("clap_c");
-const clap = @import("clap_adapter");
+const clap = @import("clap");
 
 const std = @import("std");
 const log = std.log.scoped(.zigplug_clap_state);
