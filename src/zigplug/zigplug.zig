@@ -95,9 +95,87 @@ pub const Plugin = struct {
     allocator: std.mem.Allocator,
     parameters: ?*anyopaque = null,
 
+    // error unions make `==` type comparison wonky so we have to compare arg and return types manually
+    fn validateFunction(comptime Container: type, comptime name: []const u8, comptime args: []const type, Return: type) void {
+        const ExpectedType = @Type(.{ .@"fn" = .{
+            .params = comptime blk: {
+                var params: [args.len]std.builtin.Type.Fn.Param = undefined;
+                for (args, 0..) |Arg, i|
+                    params[i] = .{
+                        .type = Arg,
+                        .is_generic = false,
+                        .is_noalias = false,
+                    };
+                break :blk &params;
+            },
+            .return_type = Return,
+            .calling_convention = .auto,
+            .is_var_args = false,
+            .is_generic = false,
+        } });
+
+        if (!@hasDecl(Container, name))
+            @compileError("Plugin is missing method '" ++ name ++ "' of type '" ++ @typeName(ExpectedType) ++ "'");
+
+        const Fn = @TypeOf(@field(Container, name));
+        const info = @typeInfo(Fn).@"fn";
+        const msg = "Wrong signature for method '" ++ name ++ "': expected '" ++ @typeName(ExpectedType) ++ "', found '" ++ @typeName(Fn) ++ "'";
+
+        const Actual = info.return_type orelse void;
+
+        switch (@typeInfo(Actual)) {
+            .error_union => |actual_error_union| {
+                switch (@typeInfo(Return)) {
+                    .error_union => |expected_error_union| {
+                        if (actual_error_union.payload != expected_error_union.payload)
+                            @compileError(msg);
+                    },
+                    else => @compileError(msg),
+                }
+            },
+            else => if (Actual != Return) @compileError(msg),
+        }
+
+        const params = info.params;
+        if (params.len != args.len)
+            @compileError(msg);
+
+        inline for (params, args) |param, Arg| {
+            if (param.type != Arg)
+                @compileError(msg);
+        }
+    }
+
     // TODO: allow setting an allocator *after* init
-    // TODO: validate parameters struct
     pub fn new(comptime T: type, allocator: std.mem.Allocator) !Plugin {
+        if (!@hasDecl(T, "meta") or @TypeOf(T.meta) != Meta)
+            @compileError(
+                \\Plugin is missing a metadata object.
+                \\
+                \\Add one to your root plugin struct:
+                \\`pub const meta = @import("zigplug").Meta{...};`
+            );
+
+        validateFunction(T, "plugin", &.{}, anyerror!Plugin);
+        validateFunction(T, "init", &.{}, anyerror!T);
+        validateFunction(T, "deinit", &.{*T}, void);
+
+        if (@hasDecl(T, "Parameters")) {
+            const Parameters = T.Parameters;
+            validateFunction(T, "process", &.{ *T, ProcessBlock, *const Parameters }, anyerror!void);
+            switch (@typeInfo(Parameters)) {
+                .@"struct" => |info| {
+                    inline for (info.fields) |field| {
+                        if (field.type != Parameter)
+                            @compileError("`Parameters` struct field '" ++ field.name ++ "' is not of type `zigplug.Parameter`");
+                        if (field.defaultValue() == null)
+                            @compileError("`Parameters` struct field '" ++ field.name ++ "' has no default value");
+                    }
+                },
+                else => @compileError("`Parameters` type is not a struct"),
+            }
+        } else validateFunction(T, "process", &.{ *T, ProcessBlock }, anyerror!void);
+
         const context = try allocator.create(T);
         context.* = try T.init();
         return .{

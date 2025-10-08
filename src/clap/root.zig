@@ -304,7 +304,6 @@ fn PluginFactory(comptime Plugin: type) type {
             log.debug("get_plugin_descriptor({})", .{index});
 
             const meta: zigplug.Meta = Plugin.meta;
-            // TODO: validate meta
             const clap_meta: Meta = Plugin.clap_meta;
 
             const desc: c.clap_plugin_descriptor = .{
@@ -411,6 +410,13 @@ fn PluginEntry(factory: c.clap_plugin_factory_t) type {
 
 pub fn clapEntry(comptime Plugin: type) c.clap_plugin_entry_t {
     const factory = PluginFactory(Plugin);
+    if (!@hasDecl(Plugin, "clap_meta") or @TypeOf(Plugin.clap_meta) != Meta)
+        @compileError(
+            \\CLAP plugin is missing a metadata object.
+            \\
+            \\Add one to your root plugin struct:
+            \\`pub const clap_meta = @import("zigplug_clap").Meta{...};`
+        );
 
     const factory_c: c.clap_plugin_factory_t = .{
         .get_plugin_count = factory.get_plugin_count,
