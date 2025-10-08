@@ -87,7 +87,7 @@ pub const Options = struct {
     name: []const u8,
     /// Module that contains `plugin()`
     root_module: *std.Build.Module,
-    /// Same dependency your plugin imports the "zigplug" module from
+    /// Must be the same dependency your plugin imports the "zigplug" module from
     zigplug_dep: *std.Build.Dependency,
     /// Whether to add the resulting compile step to your project's top level install step
     install: bool = true,

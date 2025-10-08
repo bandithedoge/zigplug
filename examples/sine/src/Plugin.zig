@@ -6,7 +6,6 @@ const zigplug = @import("zigplug");
 var gpa = std.heap.GeneralPurposeAllocator(.{}).init;
 
 pub const meta: zigplug.Meta = .{
-    .id = "com.bandithedoge.zigplug_sine_example",
     .name = "zigplug sine example",
     .vendor = "bandithedoge",
     .url = "https://bandithedoge.com/zigplug",
@@ -25,6 +24,12 @@ pub const meta: zigplug.Meta = .{
         }},
         .out = &.{},
     },
+};
+
+pub const clap_meta: @import("zigplug_clap").Meta = .{
+    .id = "com.bandithedoge.zigplug_sine_example",
+    // .features = &.{ .instrument, .synthesizer, .mono },
+    .features = &.{},
 };
 
 pub fn plugin() !zigplug.Plugin {

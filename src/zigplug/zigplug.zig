@@ -62,38 +62,29 @@ pub const NotePorts = struct {
     out: []const Port,
 };
 
-// TODO: break out CLAP-specific descriptor fields
 pub const Meta = struct {
-    id: [:0]const u8,
     name: [:0]const u8,
     vendor: [:0]const u8,
     url: [:0]const u8,
     version: [:0]const u8,
     description: [:0]const u8,
-    // TODO: implement features
     manual_url: ?[:0]const u8 = null,
     support_url: ?[:0]const u8 = null,
 
     audio_ports: ?AudioPorts = null,
     note_ports: ?NotePorts = null,
 
-    // Parameters: ?type = null,
-
     /// When enabled, the signal is split into smaller buffers of different sizes so that every parameter change is
     /// accounted for. This slightly increases CPU usage and potentially reduces the effectiveness of optimizations like
     /// SIMD in return for more accurate parameter automation.
     ///
-    /// Has no effect when `Description.Parameters` is null.
+    /// Has no effect when the plugin has no parameters
     // TODO: set this for individual parameters
     sample_accurate_automation: bool = false,
 };
 
-// TODO: make descriptor a member here
 pub const Plugin = struct {
     context: *anyopaque,
-    // you can't just free an opaque pointer with unknown size and alignment so we keep that here
-    context_size: usize,
-    context_align: u16,
 
     vtable: struct {
         // TODO: verify types
@@ -111,8 +102,6 @@ pub const Plugin = struct {
         context.* = try T.init();
         return .{
             .context = context,
-            .context_size = @sizeOf(T),
-            .context_align = @alignOf(T),
             .vtable = .{
                 .deinit = @ptrCast(&T.deinit),
                 .process = @ptrCast(&T.process),
@@ -121,11 +110,11 @@ pub const Plugin = struct {
         };
     }
 
-    pub inline fn deinit(self: *Plugin) void {
+    pub inline fn deinit(self: *Plugin, comptime P: type) void {
         self.vtable.deinit(self.context);
 
-        const bytes: [*]u8 = @ptrCast(self.context);
-        self.allocator.rawFree(bytes[0..self.context_size], .fromByteUnits(self.context_align), @returnAddress());
+        const plugin: *P = @ptrCast(@alignCast(self.context));
+        self.allocator.destroy(plugin);
     }
 
     pub inline fn process(self: *Plugin, block: ProcessBlock, params: ?*const anyopaque) !void {

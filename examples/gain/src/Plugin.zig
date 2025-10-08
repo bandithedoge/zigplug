@@ -7,7 +7,6 @@ var gpa = std.heap.GeneralPurposeAllocator(.{}).init;
 
 pub const Parameters = struct {
     const PanningLaw = enum { linear, constant_power, square_root };
-
     bypass: zigplug.Parameter = .bypass,
 
     gain: zigplug.Parameter = .{ .float = .init(.{
@@ -37,7 +36,6 @@ pub const Parameters = struct {
 };
 
 pub const meta: zigplug.Meta = .{
-    .id = "com.bandithedoge.zigplug_gain_example",
     .name = "zigplug gain example",
     .vendor = "bandithedoge",
     .url = "https://bandithedoge.com/zigplug",
@@ -55,6 +53,11 @@ pub const meta: zigplug.Meta = .{
     },
 
     .sample_accurate_automation = true,
+};
+
+pub const clap_meta: @import("zigplug_clap").Meta = .{
+    .id = "com.bandithedoge.zigplug_gain_example",
+    .features = &.{ .audio_effect, .mono, .stereo, .utility },
 };
 
 pub fn plugin() !zigplug.Plugin {

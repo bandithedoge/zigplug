@@ -15,6 +15,7 @@ pub fn build(b: *std.Build) !void {
         .root_source_file = b.path("src/Plugin.zig"),
         .imports = &.{
             .{ .name = "zigplug", .module = zigplug_dep.module("zigplug") },
+            .{ .name = "zigplug_clap", .module = zigplug_dep.module("clap") },
         },
     });
 
