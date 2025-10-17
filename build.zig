@@ -38,12 +38,18 @@ pub fn build(b: *std.Build) !void {
         .root_module = zigplug,
     });
 
-    const install_docs = b.addInstallDirectory(.{
-        .source_dir = lib.getEmittedDocs(),
-        .install_dir = .prefix,
-        .install_subdir = "docs",
+    var docs_src = std.ArrayList(u8).empty;
+    try docs_src.appendSlice(b.allocator,
+        \\comptime {@import("std").testing.refAllDeclsRecursive(@This());}
+        \\
+        \\pub const zigplug = @import("zigplug");
+        \\
+    );
+    const docs_module = b.createModule(.{
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{.{ .name = "zigplug", .module = zigplug }},
     });
-    docs_step.dependOn(&install_docs.step);
 
     check.dependOn(&lib.step);
 
@@ -78,8 +84,32 @@ pub fn build(b: *std.Build) !void {
             .name = "zigplug_clap",
             .root_module = clap_module,
         });
+
         check.dependOn(&clap_lib.step);
+
+        docs_module.addImport("clap", clap_module);
+        try docs_src.appendSlice(b.allocator,
+            \\ pub const clap = @import("clap");
+            \\
+        );
     }
+
+    docs_module.root_source_file =
+        b.addWriteFile("docs.zig", try docs_src.toOwnedSlice(b.allocator))
+            .getDirectory()
+            .path(b, "docs.zig");
+
+    const docs = b.addLibrary(.{
+        .name = "zigplug-docs",
+        .root_module = docs_module,
+    });
+
+    const install_docs = b.addInstallDirectory(.{
+        .source_dir = docs.getEmittedDocs(),
+        .install_dir = .prefix,
+        .install_subdir = "docs",
+    });
+    docs_step.dependOn(&install_docs.step);
 }
 
 pub const Options = struct {
