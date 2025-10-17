@@ -25,3 +25,7 @@ pub inline fn getExtension(comptime Plugin: type, id: [:0]const u8) ?*const anyo
 
     return null;
 }
+
+comptime {
+    std.testing.refAllDeclsRecursive(@This());
+}

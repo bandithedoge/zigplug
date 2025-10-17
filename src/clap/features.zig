@@ -95,3 +95,7 @@ pub const Feature = enum {
         };
     }
 };
+
+comptime {
+    std.testing.refAllDeclsRecursive(@This());
+}

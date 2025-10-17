@@ -463,5 +463,5 @@ pub fn clapEntry(comptime Plugin: type) c.clap_plugin_entry_t {
 }
 
 comptime {
-    std.testing.refAllDeclsRecursive(@This());
+    std.testing.refAllDecls(@This());
 }
