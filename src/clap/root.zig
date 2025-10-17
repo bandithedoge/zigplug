@@ -1,7 +1,7 @@
 const std = @import("std");
 
 const zigplug = @import("zigplug");
-const c = @import("clap_c");
+pub const c = @import("clap_c");
 
 pub const log = std.log.scoped(.zigplug_clap);
 
@@ -11,10 +11,26 @@ pub const Meta = struct {
     id: [:0]const u8,
     // TODO: custom namespaced features
     features: []const Feature,
+
+    /// This field allows you to extend zigplug's CLAP implementation with extra extensions or override already
+    /// supported ones.
+    ///
+    /// Your function should return a pointer to the extension's struct if the ID matches, and null otherwise.
+    ///
+    /// See `c` for data types and extension IDs. Use `pluginFromClap` to access your plugin's state from
+    /// `c.clap_plugin_t` pointers.
+    getExtension: ?*const fn (id: [:0]const u8) ?*const anyopaque = null,
 };
+
+/// Get a pointer to our plugin struct from the CLAP plugin state. This is intended to be used in `Meta.getExtension`.
+pub fn pluginFromClap(clap_plugin: [*c]const c.clap_plugin_t, comptime T: type) *T {
+    const data = Data.fromClap(clap_plugin);
+    return @ptrCast(@alignCast(data.plugin_data.plugin.context));
+}
 
 pub const Data = struct {
     plugin_data: zigplug.PluginData,
+    meta: Meta,
 
     process_block: zigplug.ProcessBlock,
     parameters: ?[]*zigplug.Parameter = null,
@@ -282,9 +298,15 @@ fn ClapPlugin(comptime Plugin: type) type {
             return c.CLAP_PROCESS_CONTINUE;
         }
 
-        fn get_extension(_: [*c]const c.clap_plugin, id: [*c]const u8) callconv(.c) ?*const anyopaque {
+        fn get_extension(clap_plugin: [*c]const c.clap_plugin, id: [*c]const u8) callconv(.c) ?*const anyopaque {
             log.debug("get_extension({s})", .{id});
-            return @import("extensions.zig").getExtension(Plugin, std.mem.span(id));
+            const id_slice = std.mem.span(id);
+
+            const data = Data.fromClap(clap_plugin);
+            if (data.meta.getExtension) |getExtension|
+                if (getExtension(id_slice)) |ptr|
+                    return ptr;
+            return @import("extensions.zig").getExtension(Plugin, id_slice);
         }
 
         fn on_main_thread(_: [*c]const c.clap_plugin) callconv(.c) void {
@@ -359,6 +381,7 @@ fn PluginFactory(comptime Plugin: type) type {
                 .plugin_data = .{
                     .plugin = plugin,
                 },
+                .meta = Plugin.clap_meta,
                 .host = host,
                 .process_block = .{
                     .context = plugin_data,
