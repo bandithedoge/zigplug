@@ -24,8 +24,12 @@ pub fn Options(comptime T: type) type {
         /// Some parameters such as bypass get special treatment. See `parameters.Bypass`
         special: ?enum { bypass } = null,
 
-        format: ?*const fn (allocator: std.mem.Allocator, value: T, unit: ?[]const u8) anyerror![]const u8 = null,
-        parse: ?*const fn (value: []const u8, unit: ?[]const u8) anyerror!T = null,
+        /// Pretty-print a value to be shown to the user by the host. Make sure that `format(parse(x)) == x`
+        ///
+        /// It is not necessary to call `std.Io.Writer.flush`
+        format: ?*const fn (value: T, writer: *std.Io.Writer) std.Io.Writer.Error!void = null,
+        /// Parse a pretty-printed value written by the user. Make sure that `parse(format(x)) == x`
+        parse: ?*const fn (value: []const u8) anyerror!T = null,
     };
 }
 
@@ -40,6 +44,9 @@ pub const Parameter = union(ParameterType) {
             pub fn init(comptime options: Options(Type)) @This() {
                 if (options.special == .bypass and Type != bool)
                     @compileError("Bypass parameter type must be bool, got " ++ @typeName(Type));
+
+                if (options.unit != null and options.format != null)
+                    @compileError("Parameter '" ++ options.name ++ "' has both `format` and `unit`, which are mutually exclusive");
 
                 return .{
                     .value = .init(options.default),
@@ -77,25 +84,24 @@ pub const Parameter = union(ParameterType) {
                 };
             }
 
-            // TODO: use std.fmt.format (writergate)
-            pub fn format(self: *const @This(), allocator: std.mem.Allocator, value: Type) ![]const u8 {
+            pub fn format(self: *const @This(), writer: *std.Io.Writer, value: Type) std.Io.Writer.Error!void {
                 if (self.options.format) |f|
-                    return f(allocator, value, self.options.unit);
-
-                const fmt_string = comptime switch (@typeInfo(@TypeOf(value))) {
-                    .float, .comptime_float => "{d}",
-                    else => "{}",
-                };
-
-                return if (self.options.unit) |unit|
-                    std.fmt.allocPrint(allocator, fmt_string ++ "{s}", .{ value, unit })
+                    try f(value, writer)
                 else
-                    std.fmt.allocPrint(allocator, fmt_string, .{value});
+                    try writer.print(
+                        switch (@typeInfo(@TypeOf(value))) {
+                            .float, .comptime_float => "{d}{s}",
+                            else => "{}{s}",
+                        },
+                        .{ value, self.options.unit orelse "" },
+                    );
+
+                try writer.flush();
             }
 
             pub fn parse(self: *const @This(), value: []const u8) !Type {
                 if (self.options.parse) |f|
-                    return f(value, self.options.unit);
+                    return f(value);
 
                 const str = if (self.options.unit) |u|
                     std.mem.trimRight(u8, value, u)
@@ -136,7 +142,9 @@ pub const Parameter = union(ParameterType) {
             name: [:0]const u8,
             default: T,
             automatable: bool = true,
-            /// Map of pretty strings to enum, used for formatting human-readable parameter values.
+            /// Map of pretty strings to enum, used for formatting human-readable parameter values. Values that aren't
+            /// present in the map will default to `@tagName(x)`.
+            ///
             /// Consider initializing with `std.StaticStringMap(T).initComptime`.
             map: ?std.StaticStringMap(T) = null,
         };
@@ -147,10 +155,10 @@ pub const Parameter = union(ParameterType) {
         switch (@typeInfo(T)) {
             .@"enum" => |info| {
                 const callbacks = struct {
-                    pub fn format(allocator: std.mem.Allocator, value: u64, _: ?[]const u8) ![]const u8 {
+                    pub fn format(value: u64, writer: *std.Io.Writer) std.Io.Writer.Error!void {
                         if (value >= @typeInfo(T).@"enum".fields.len) {
                             zigplug.log.err("invalid value for enum {s}: {}", .{ @typeName(T), value });
-                            return error.InvalidEnum;
+                            return error.WriteFailed;
                         }
                         const name = blk: {
                             if (options.map) |map|
@@ -159,10 +167,10 @@ pub const Parameter = union(ParameterType) {
                                         break :blk k;
                             break :blk std.enums.tagName(T, @enumFromInt(value)).?;
                         };
-                        return std.fmt.allocPrint(allocator, "{s}", .{name});
+                        try writer.writeAll(name);
                     }
 
-                    pub fn parse(value: []const u8, _: ?[]const u8) error{InvalidEnum}!u64 {
+                    pub fn parse(value: []const u8) error{InvalidEnum}!u64 {
                         if (options.map) |map|
                             if (map.get(value)) |v|
                                 return @intFromEnum(v);
@@ -200,15 +208,20 @@ test Parameter {
     defer arena.deinit();
     const allocator = arena.allocator();
 
+    var buffer = std.Io.Writer.Allocating.init(allocator);
+    defer buffer.deinit();
+    const writer = &buffer.writer;
+
     const float_param: Parameter = .{ .float = .init(.{
         .name = "Float parameter",
         .default = 0,
         .min = -1,
         .max = 1,
     }) };
+    try float_param.float.format(writer, float_param.float.get());
     try std.testing.expectEqual(
         float_param.float.get(),
-        try float_param.float.parse(try float_param.float.format(allocator, float_param.float.get())),
+        try float_param.float.parse(try buffer.toOwnedSlice()),
     );
 
     const int_param: Parameter = .{ .int = .init(.{
@@ -217,9 +230,10 @@ test Parameter {
         .min = -100,
         .max = 100,
     }) };
+    try int_param.int.format(writer, int_param.int.get());
     try std.testing.expectEqual(
         int_param.int.get(),
-        try int_param.int.parse(try int_param.int.format(allocator, int_param.int.get())),
+        try int_param.int.parse(try buffer.toOwnedSlice()),
     );
 
     const uint_param: Parameter = .{ .uint = .init(.{
@@ -228,9 +242,10 @@ test Parameter {
         .min = 0,
         .max = 100,
     }) };
+    try uint_param.uint.format(writer, uint_param.uint.get());
     try std.testing.expectEqual(
         uint_param.uint.get(),
-        try uint_param.uint.parse(try uint_param.uint.format(allocator, uint_param.uint.get())),
+        try uint_param.uint.parse(try buffer.toOwnedSlice()),
     );
 
     const bool_param: Parameter = .{ .bool = .init(.{
@@ -239,9 +254,10 @@ test Parameter {
         .min = false,
         .max = true,
     }) };
+    try bool_param.bool.format(writer, bool_param.bool.get());
     try std.testing.expectEqual(
         bool_param.bool.get(),
-        try bool_param.bool.parse(try bool_param.bool.format(allocator, bool_param.bool.get())),
+        try bool_param.bool.parse(try buffer.toOwnedSlice()),
     );
 }
 
@@ -256,24 +272,23 @@ test "unit and custom formatting" {
             .default = 0,
             .min = -(12 * 100 * 5), // -5 octaves
             .max = 12 * 100 * 5, // +5 octaves
-            .unit = " c",
             .format = struct {
-                pub fn f(alloc: std.mem.Allocator, value: i64, unit: ?[]const u8) ![]const u8 {
-                    return std.fmt.allocPrint(alloc, "{s}{}{s}", .{ switch (std.math.sign(value)) {
+                pub fn f(value: i64, writer: *std.Io.Writer) std.Io.Writer.Error!void {
+                    try writer.print("{s}{} c", .{ switch (std.math.sign(value)) {
                         -1, 0 => "",
                         1 => "+",
                         else => unreachable,
-                    }, value, unit.? });
+                    }, value });
                 }
             }.f,
             .parse = struct {
-                pub fn f(value: []const u8, unit: ?[]const u8) !i64 {
+                pub fn f(value: []const u8) !i64 {
                     return std.fmt.parseInt(
                         i64,
                         std.mem.trimRight(
                             u8,
                             std.mem.trimLeft(u8, std.mem.trimLeft(u8, value, "-"), "+"),
-                            unit.?,
+                            " c",
                         ),
                         10,
                     );
@@ -282,13 +297,21 @@ test "unit and custom formatting" {
         }),
     };
 
-    try std.testing.expectEqualStrings("0 c", try int_param.int.format(allocator, int_param.int.get()));
+    var buffer = std.Io.Writer.Allocating.init(allocator);
+    defer buffer.deinit();
+    const writer = &buffer.writer;
+
+    try int_param.int.format(writer, int_param.int.get());
+    try std.testing.expectEqualStrings("0 c", try buffer.toOwnedSlice());
     try std.testing.expectEqual(1200, try int_param.int.parse("1200 c"));
 
     int_param.int.set(1200);
-    try std.testing.expectEqualStrings("+1200 c", try int_param.int.format(allocator, int_param.int.get()));
+    try int_param.int.format(writer, int_param.int.get());
+    try std.testing.expectEqualStrings("+1200 c", try buffer.toOwnedSlice());
+
     int_param.int.set(-1200);
-    try std.testing.expectEqualStrings("-1200 c", try int_param.int.format(allocator, int_param.int.get()));
+    try int_param.int.format(writer, int_param.int.get());
+    try std.testing.expectEqualStrings("-1200 c", try buffer.toOwnedSlice());
 }
 
 test "choice parameter" {
@@ -296,21 +319,22 @@ test "choice parameter" {
     defer arena.deinit();
     const allocator = arena.allocator();
 
+    var buffer = std.Io.Writer.Allocating.init(allocator);
+    defer buffer.deinit();
+    const writer = &buffer.writer;
+
     const T = enum { one, two, three };
 
     var choice_param = Parameter.choice(T, .{
         .name = "Choice parameter",
         .default = .one,
     });
-    try std.testing.expectEqualStrings(
-        "one",
-        try choice_param.uint.format(allocator, choice_param.uint.get()),
-    );
+    try choice_param.uint.format(writer, choice_param.uint.get());
+    try std.testing.expectEqualStrings("one", try buffer.toOwnedSlice());
+
     choice_param.uint.set(T.two);
-    try std.testing.expectEqualStrings(
-        "two",
-        try choice_param.uint.format(allocator, choice_param.uint.get()),
-    );
+    try choice_param.uint.format(writer, choice_param.uint.get());
+    try std.testing.expectEqualStrings("two", try buffer.toOwnedSlice());
 
     var choice_param_custom_fmt = Parameter.choice(T, .{
         .name = "Choice parameter with custom formatting",
@@ -320,19 +344,15 @@ test "choice parameter" {
             .{ "2", .two },
         }),
     });
-    try std.testing.expectEqualStrings(
-        "1",
-        try choice_param_custom_fmt.uint.format(allocator, choice_param_custom_fmt.uint.get()),
-    );
+    try choice_param_custom_fmt.uint.format(writer, choice_param_custom_fmt.uint.get());
+    try std.testing.expectEqualStrings("1", try buffer.toOwnedSlice());
+
     choice_param_custom_fmt.uint.set(T.two);
-    try std.testing.expectEqualStrings(
-        "2",
-        try choice_param_custom_fmt.uint.format(allocator, choice_param_custom_fmt.uint.get()),
-    );
+    try choice_param_custom_fmt.uint.format(writer, choice_param_custom_fmt.uint.get());
+    try std.testing.expectEqualStrings("2", try buffer.toOwnedSlice());
+
     choice_param_custom_fmt.uint.set(T.three);
-    // .three is absent from the static string map so the tag's name should be used
-    try std.testing.expectEqualStrings(
-        "three",
-        try choice_param_custom_fmt.uint.format(allocator, choice_param_custom_fmt.uint.get()),
-    );
+    try choice_param_custom_fmt.uint.format(writer, choice_param_custom_fmt.uint.get());
+    // `.three` is absent from the static string map so the tag's name should be used
+    try std.testing.expectEqualStrings("three", try buffer.toOwnedSlice());
 }

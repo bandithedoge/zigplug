@@ -69,16 +69,20 @@ pub fn extension(comptime Plugin: type) *const c.clap_plugin_params_t {
             const data = clap.Data.fromClap(clap_plugin);
             const param = data.parameters.?[id].*;
 
-            const formatted = switch (param) {
-                inline else => |p| p.format(data.plugin_data.plugin.allocator, @TypeOf(p).fromFloat(value)),
-            } catch {
-                log.err("failed to format parameter '{s}': {}", .{ switch (param) {
-                    inline else => |p| p.options.name,
-                }, value });
-                return false;
-            };
+            const allocator = data.plugin_data.plugin.allocator;
+            var buffer = std.Io.Writer.Allocating.init(allocator);
+            defer buffer.deinit();
+            const writer = &buffer.writer;
 
-            defer data.plugin_data.plugin.allocator.free(formatted);
+            switch (param) {
+                inline else => |p| p.format(writer, @TypeOf(p).fromFloat(value)) catch {
+                    log.err("failed to format parameter '{s}': {}", .{ p.options.name, value });
+                    return false;
+                },
+            }
+
+            const formatted = buffer.toOwnedSlice() catch return false;
+            defer allocator.free(formatted);
 
             const size = @min(formatted.len, out_capacity);
 
