@@ -146,8 +146,7 @@ pub const Plugin = struct {
         }
     }
 
-    // TODO: allow setting an allocator *after* init
-    pub fn new(comptime T: type, allocator: std.mem.Allocator) !Plugin {
+    pub fn new(comptime T: type) !Plugin {
         if (!@hasDecl(T, "meta") or @TypeOf(T.meta) != Meta)
             @compileError(
                 \\Plugin is missing a metadata object.
@@ -159,6 +158,7 @@ pub const Plugin = struct {
         validateFunction(T, "plugin", &.{}, anyerror!Plugin);
         validateFunction(T, "init", &.{}, anyerror!T);
         validateFunction(T, "deinit", &.{*T}, void);
+        validateFunction(T, "allocator", &.{*T}, std.mem.Allocator);
 
         if (@hasDecl(T, "Parameters")) {
             const Parameters = T.Parameters;
@@ -176,15 +176,18 @@ pub const Plugin = struct {
             }
         } else validateFunction(T, "process", &.{ *T, ProcessBlock }, anyerror!void);
 
+        var plugin = try T.init();
+        const allocator = plugin.allocator();
+
         const context = try allocator.create(T);
-        context.* = try T.init();
+        context.* = plugin;
         return .{
             .context = context,
             .vtable = .{
                 .deinit = @ptrCast(&T.deinit),
                 .process = @ptrCast(&T.process),
             },
-            .allocator = allocator,
+            .allocator = context.allocator(),
         };
     }
 

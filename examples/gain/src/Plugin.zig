@@ -1,9 +1,8 @@
+const GainExample = @This();
+
 const std = @import("std");
 
 const zigplug = @import("zigplug");
-
-// FIXME: global var bad
-var gpa = std.heap.GeneralPurposeAllocator(.{}).init;
 
 pub const Parameters = struct {
     const PanningLaw = enum { linear, constant_power, square_root };
@@ -61,16 +60,24 @@ pub const clap_meta: @import("zigplug_clap").Meta = .{
 };
 
 pub fn plugin() !zigplug.Plugin {
-    return try zigplug.Plugin.new(@This(), gpa.allocator());
+    return try zigplug.Plugin.new(GainExample);
 }
 
-pub fn init() !@This() {
+gpa: std.heap.GeneralPurposeAllocator(.{}) = .init,
+
+pub fn init() !GainExample {
     return .{};
 }
 
-pub fn deinit(_: *@This()) void {}
+pub fn deinit(self: *GainExample) void {
+    _ = self.gpa.deinit();
+}
 
-pub fn process(self: *@This(), block: zigplug.ProcessBlock, params: *const Parameters) !void {
+pub fn allocator(self: *GainExample) std.mem.Allocator {
+    return self.gpa.allocator();
+}
+
+pub fn process(self: *GainExample, block: zigplug.ProcessBlock, params: *const Parameters) !void {
     _ = self;
 
     if (params.bypass.bool.get()) {

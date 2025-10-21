@@ -5,9 +5,6 @@ const std = @import("std");
 const zigplug = @import("zigplug");
 const clap = @import("zigplug_clap");
 
-// FIXME: global var bad
-var gpa = std.heap.GeneralPurposeAllocator(.{}).init;
-
 pub const meta: zigplug.Meta = .{
     .name = "zigplug clap extension example",
     .vendor = "bandithedoge",
@@ -76,8 +73,10 @@ pub const clap_meta: clap.Meta = .{
 };
 
 pub fn plugin() !zigplug.Plugin {
-    return try zigplug.Plugin.new(ClapExtExample, gpa.allocator());
+    return try zigplug.Plugin.new(ClapExtExample);
 }
+
+gpa: std.heap.GeneralPurposeAllocator(.{}) = .init,
 
 phase: f32 = 0,
 sample_rate: f32 = 0,
@@ -88,7 +87,13 @@ pub fn init() !ClapExtExample {
     return .{};
 }
 
-pub fn deinit(_: *ClapExtExample) void {}
+pub fn deinit(self: *ClapExtExample) void {
+    _ = self.gpa.deinit();
+}
+
+pub fn allocator(self: *ClapExtExample) std.mem.Allocator {
+    return self.gpa.allocator();
+}
 
 pub fn process(self: *ClapExtExample, block: zigplug.ProcessBlock) !void {
     self.sample_rate = @floatFromInt(block.sample_rate);

@@ -1,9 +1,8 @@
+const SineExample = @This();
+
 const std = @import("std");
 
 const zigplug = @import("zigplug");
-
-// FIXME: global var bad
-var gpa = std.heap.GeneralPurposeAllocator(.{}).init;
 
 pub const meta: zigplug.Meta = .{
     .name = "zigplug sine example",
@@ -33,21 +32,29 @@ pub const clap_meta: @import("zigplug_clap").Meta = .{
 };
 
 pub fn plugin() !zigplug.Plugin {
-    return try zigplug.Plugin.new(@This(), gpa.allocator());
+    return try zigplug.Plugin.new(SineExample);
 }
+
+gpa: std.heap.GeneralPurposeAllocator(.{}) = .init,
 
 phase: f32 = 0,
 sample_rate: f32 = 0,
 note: ?u8 = null,
 gain: f32 = 0,
 
-pub fn init() !@This() {
+pub fn init() !SineExample {
     return .{};
 }
 
-pub fn deinit(_: *@This()) void {}
+pub fn deinit(self: *SineExample) void {
+    _ = self.gpa.deinit();
+}
 
-pub fn process(self: *@This(), block: zigplug.ProcessBlock) !void {
+pub fn allocator(self: *SineExample) std.mem.Allocator {
+    return self.gpa.allocator();
+}
+
+pub fn process(self: *SineExample, block: zigplug.ProcessBlock) !void {
     self.sample_rate = @floatFromInt(block.sample_rate);
 
     var start: u32 = 0;
@@ -72,7 +79,7 @@ pub fn process(self: *@This(), block: zigplug.ProcessBlock) !void {
     self.fillBuffer(&block, start, end);
 }
 
-inline fn fillBuffer(self: *@This(), block: *const zigplug.ProcessBlock, start: u32, end: u32) void {
+inline fn fillBuffer(self: *SineExample, block: *const zigplug.ProcessBlock, start: u32, end: u32) void {
     for (start..end) |i| {
         for (block.out) |port| {
             for (port) |channel| {
@@ -82,7 +89,7 @@ inline fn fillBuffer(self: *@This(), block: *const zigplug.ProcessBlock, start: 
     }
 }
 
-fn sine(self: *@This(), frequency: f32) f32 {
+fn sine(self: *SineExample, frequency: f32) f32 {
     const phase_delta = frequency / self.sample_rate;
 
     const result = @sin(std.math.tau * self.phase);
