@@ -155,7 +155,6 @@ pub const Plugin = struct {
                 \\`pub const meta = @import("zigplug").Meta{...};`
             );
 
-        validateFunction(T, "plugin", &.{}, anyerror!Plugin);
         validateFunction(T, "init", &.{}, anyerror!T);
         validateFunction(T, "deinit", &.{*T}, void);
         validateFunction(T, "allocator", &.{*T}, std.mem.Allocator);

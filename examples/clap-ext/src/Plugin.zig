@@ -67,14 +67,9 @@ fn getExtension(id: [:0]const u8) ?*const anyopaque {
 
 pub const clap_meta: clap.Meta = .{
     .id = "com.bandithedoge.zigplug_clap_ext_example",
-    // .features = &.{ .instrument, .synthesizer, .mono },
-    .features = &.{},
+    .features = &.{ .instrument, .synthesizer, .mono },
     .getExtension = getExtension,
 };
-
-pub fn plugin() !zigplug.Plugin {
-    return try zigplug.Plugin.new(ClapExtExample);
-}
 
 gpa: std.heap.GeneralPurposeAllocator(.{}) = .init,
 

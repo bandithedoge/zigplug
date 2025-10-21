@@ -362,7 +362,10 @@ fn PluginFactory(comptime Plugin: type) type {
 
             const clap_plugin = ClapPlugin(Plugin);
 
-            const plugin: zigplug.Plugin = Plugin.plugin() catch return null;
+            const plugin = zigplug.Plugin.new(Plugin) catch |e| {
+                log.err("failed to initialize plugin: {}", .{e});
+                return null;
+            };
 
             std.debug.assert(host != null);
 

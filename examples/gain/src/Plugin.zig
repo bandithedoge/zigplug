@@ -59,10 +59,6 @@ pub const clap_meta: @import("zigplug_clap").Meta = .{
     .features = &.{ .audio_effect, .mono, .stereo, .utility },
 };
 
-pub fn plugin() !zigplug.Plugin {
-    return try zigplug.Plugin.new(GainExample);
-}
-
 gpa: std.heap.GeneralPurposeAllocator(.{}) = .init,
 
 pub fn init() !GainExample {

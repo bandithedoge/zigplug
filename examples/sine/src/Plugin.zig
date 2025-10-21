@@ -31,10 +31,6 @@ pub const clap_meta: @import("zigplug_clap").Meta = .{
     .features = &.{},
 };
 
-pub fn plugin() !zigplug.Plugin {
-    return try zigplug.Plugin.new(SineExample);
-}
-
 gpa: std.heap.GeneralPurposeAllocator(.{}) = .init,
 
 phase: f32 = 0,
