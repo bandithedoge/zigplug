@@ -24,14 +24,13 @@
           ...
         }:
         let
-          zig = inputs.zig-overlay.packages.${system}."0_15_1";
-          inherit (zig) zls;
+          zig' = inputs.zig-overlay.packages.${system}."0_15_2";
         in
         {
           devShells.default = pkgs.mkShell {
             packages = [
-              zig
-              zls
+              zig'
+              zig'.zls
             ];
           };
         };
