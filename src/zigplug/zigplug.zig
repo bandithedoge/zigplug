@@ -87,7 +87,6 @@ pub const Plugin = struct {
     context: *anyopaque,
 
     vtable: struct {
-        // TODO: verify types
         deinit: *const fn (*anyopaque) void,
         process: *const fn (*anyopaque, ProcessBlock, ?*const anyopaque) anyerror!void,
     },
@@ -196,6 +195,30 @@ pub const Plugin = struct {
 
     pub inline fn process(self: *Plugin, block: ProcessBlock, params: ?*const anyopaque) !void {
         try self.vtable.process(self.context, block, params);
+    }
+
+    pub fn makeParametersSlice(self: *Plugin, comptime P: type) ![]*Parameter {
+        if (!@hasDecl(P, "Parameters"))
+            @compileError("'Plugin.makeParametersSlice' was called but plugin has no parameters");
+        const Parameters = P.Parameters;
+
+        const params = try self.allocator.create(Parameters);
+        params.* = .{};
+        const fields = @typeInfo(Parameters).@"struct".fields;
+
+        var parameters_array = try self.allocator.alloc(*Parameter, fields.len);
+
+        inline for (fields, 0..) |field, i| {
+            if (field.type != Parameter)
+                @compileError("Parameter '" ++ field.name ++ "' is not of type 'zigplug.Parameter'");
+            if (field.default_value_ptr == null)
+                @compileError("Parameter '" ++ field.name ++ "' has no default value");
+
+            parameters_array[i] = &@field(params, field.name);
+        }
+
+        self.parameters = params;
+        return parameters_array;
     }
 };
 

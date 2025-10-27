@@ -168,35 +168,12 @@ fn ClapPlugin(comptime Plugin: type) type {
         fn init(clap_plugin: [*c]const c.clap_plugin) callconv(.c) bool {
             log.debug("init()", .{});
 
-            // TODO: move parameter initialization to a zigplug function
             if (@hasDecl(Plugin, "Parameters")) {
-                const Parameters = Plugin.Parameters;
                 const data = Data.fromClap(clap_plugin);
-                const allocator = data.plugin_data.plugin.allocator;
-
-                const parameters = allocator.create(Parameters) catch {
-                    log.err("Failed to allocate parameters", .{});
+                data.parameters = data.plugin_data.plugin.makeParametersSlice(Plugin) catch {
+                    log.err("failed to allocate parameters", .{});
                     return false;
                 };
-                parameters.* = .{};
-                const fields = @typeInfo(Parameters).@"struct".fields;
-
-                var parameters_array = allocator.alloc(*zigplug.Parameter, fields.len) catch {
-                    log.err("Failed to allocate parameters", .{});
-                    return false;
-                };
-
-                inline for (fields, 0..) |field, i| {
-                    if (field.type != zigplug.Parameter)
-                        @compileError("Parameter '" ++ field.name ++ "' is not of type 'zigplug.Parameter'");
-                    if (field.default_value_ptr == null)
-                        @compileError("Parameter '" ++ field.name ++ "' has no default value");
-
-                    parameters_array[i] = &@field(parameters, field.name);
-                }
-
-                data.parameters = parameters_array;
-                data.plugin_data.plugin.parameters = parameters;
             }
 
             return true;
