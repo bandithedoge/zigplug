@@ -175,11 +175,8 @@ pub const Plugin = struct {
             }
         } else validateFunction(T, "process", &.{ *T, ProcessBlock }, anyerror!void);
 
-        var plugin = try T.init();
-        const allocator = plugin.allocator();
-
-        const context = try allocator.create(T);
-        context.* = plugin;
+        const context = try std.heap.page_allocator.create(T);
+        context.* = try T.init();
         return .{
             .context = context,
             .vtable = .{
@@ -194,7 +191,7 @@ pub const Plugin = struct {
         self.vtable.deinit(self.context);
 
         const plugin: *P = @ptrCast(@alignCast(self.context));
-        self.allocator.destroy(plugin);
+        std.heap.page_allocator.destroy(plugin);
     }
 
     pub inline fn process(self: *Plugin, block: ProcessBlock, params: ?*const anyopaque) !void {

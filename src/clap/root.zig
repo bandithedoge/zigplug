@@ -216,6 +216,8 @@ fn ClapPlugin(comptime Plugin: type) type {
             }
 
             data.plugin_data.plugin.deinit(Plugin);
+            std.heap.page_allocator.destroy(data);
+            std.heap.page_allocator.destroy(@as(*const c.clap_plugin, clap_plugin));
         }
 
         fn activate(clap_plugin: [*c]const c.clap_plugin, sample_rate: f64, min_size: u32, max_size: u32) callconv(.c) bool {
@@ -315,6 +317,40 @@ fn ClapPlugin(comptime Plugin: type) type {
     };
 }
 
+fn makeClapDescriptor(comptime Plugin: type) std.mem.Allocator.Error!*const c.clap_plugin_descriptor {
+    const meta: zigplug.Meta = Plugin.meta;
+    const clap_meta: Meta = Plugin.clap_meta;
+
+    const desc = try std.heap.page_allocator.create(c.clap_plugin_descriptor_t);
+    desc.* = .{
+        .clap_version = .{
+            .major = c.CLAP_VERSION_MAJOR,
+            .minor = c.CLAP_VERSION_MINOR,
+            .revision = c.CLAP_VERSION_REVISION,
+        },
+
+        .id = clap_meta.id,
+        .name = meta.name,
+        .vendor = meta.vendor,
+        .url = meta.url,
+        .manual_url = meta.manual_url orelse meta.url,
+        .support_url = meta.support_url orelse meta.url,
+        .version = meta.version,
+        .description = meta.description,
+        .features = &[_][*c]const u8{null},
+        // TODO: actually implement features
+        // .features = blk: {
+        //     var features: [clap_meta.features.len + 1:null]?[*:0]const u8 = undefined;
+        //     inline for (clap_meta.features, 0..) |feature, i|
+        //         features[i] = feature.toString();
+        //     // features[clap_meta.features.len] = null;
+        //     break :blk &features;
+        // },
+    };
+
+    return desc;
+}
+
 fn PluginFactory(comptime Plugin: type) type {
     return extern struct {
         fn get_plugin_count(_: [*c]const c.clap_plugin_factory) callconv(.c) u32 {
@@ -325,36 +361,10 @@ fn PluginFactory(comptime Plugin: type) type {
         fn get_plugin_descriptor(_: [*c]const c.clap_plugin_factory, index: u32) callconv(.c) [*c]const c.clap_plugin_descriptor_t {
             log.debug("get_plugin_descriptor({})", .{index});
 
-            const meta: zigplug.Meta = Plugin.meta;
-            const clap_meta: Meta = Plugin.clap_meta;
-
-            const desc: c.clap_plugin_descriptor = .{
-                .clap_version = .{
-                    .major = c.CLAP_VERSION_MAJOR,
-                    .minor = c.CLAP_VERSION_MINOR,
-                    .revision = c.CLAP_VERSION_REVISION,
-                },
-
-                .id = clap_meta.id,
-                .name = meta.name,
-                .vendor = meta.vendor,
-                .url = meta.url,
-                .manual_url = meta.manual_url orelse meta.url,
-                .support_url = meta.support_url orelse meta.url,
-                .version = meta.version,
-                .description = meta.description,
-                .features = &[_][*c]const u8{null},
-                // TODO: actually implement features
-                // .features = blk: {
-                //     var features: [clap_meta.features.len + 1:null]?[*:0]const u8 = undefined;
-                //     inline for (clap_meta.features, 0..) |feature, i|
-                //         features[i] = feature.toString();
-                //     // features[clap_meta.features.len] = null;
-                //     break :blk &features;
-                // },
+            return makeClapDescriptor(Plugin) catch {
+                log.err("failed to allocate descriptor", .{});
+                return null;
             };
-
-            return &desc;
         }
 
         fn create_plugin(_: [*c]const c.clap_plugin_factory, host: [*c]const c.clap_host_t, plugin_id: [*c]const u8) callconv(.c) [*c]const c.clap_plugin_t {
@@ -369,17 +379,16 @@ fn PluginFactory(comptime Plugin: type) type {
 
             std.debug.assert(host != null);
 
-            const plugin_class = plugin.allocator.create(c.clap_plugin_t) catch {
+            const plugin_class = std.heap.page_allocator.create(c.clap_plugin_t) catch {
                 log.err("Plugin allocation failed", .{});
                 return null;
             };
 
-            plugin_class.*.plugin_data = plugin.allocator.create(Data) catch {
+            const plugin_data = std.heap.page_allocator.create(Data) catch {
                 log.err("Plugin allocation failed", .{});
                 return null;
             };
 
-            const plugin_data = Data.fromClap(plugin_class);
             plugin_data.* = .{
                 .plugin_data = .{
                     .plugin = plugin,
@@ -392,16 +401,23 @@ fn PluginFactory(comptime Plugin: type) type {
                 },
             };
 
-            plugin_class.*.init = clap_plugin.init;
-            plugin_class.*.destroy = clap_plugin.destroy;
-            plugin_class.*.activate = clap_plugin.activate;
-            plugin_class.*.deactivate = clap_plugin.deactivate;
-            plugin_class.*.start_processing = clap_plugin.start_processing;
-            plugin_class.*.stop_processing = clap_plugin.stop_processing;
-            plugin_class.*.reset = clap_plugin.reset;
-            plugin_class.*.process = clap_plugin.process;
-            plugin_class.*.get_extension = clap_plugin.get_extension;
-            plugin_class.*.on_main_thread = clap_plugin.on_main_thread;
+            plugin_class.* = .{
+                .desc = makeClapDescriptor(Plugin) catch {
+                    log.err("failed to allocate descriptor", .{});
+                    return null;
+                },
+                .plugin_data = plugin_data,
+                .init = clap_plugin.init,
+                .destroy = clap_plugin.destroy,
+                .activate = clap_plugin.activate,
+                .deactivate = clap_plugin.deactivate,
+                .start_processing = clap_plugin.start_processing,
+                .stop_processing = clap_plugin.stop_processing,
+                .reset = clap_plugin.reset,
+                .process = clap_plugin.process,
+                .get_extension = clap_plugin.get_extension,
+                .on_main_thread = clap_plugin.on_main_thread,
+            };
 
             return plugin_class;
         }
