@@ -97,7 +97,7 @@ pub const Plugin = struct {
         slice: []*Parameter,
     },
 
-    pub fn new(comptime T: type) !Plugin {
+    pub fn init(comptime T: type) !Plugin {
         if (!@hasDecl(T, "meta") or @TypeOf(T.meta) != Meta)
             @compileError(
                 \\Plugin is missing a metadata object.
