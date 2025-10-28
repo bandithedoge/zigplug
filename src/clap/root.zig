@@ -33,7 +33,6 @@ pub const Data = struct {
     meta: Meta,
 
     process_block: zigplug.ProcessBlock,
-    parameters: ?[]*zigplug.Parameter = null,
 
     events: ?struct {
         i: u32 = 0,
@@ -137,7 +136,13 @@ pub const Data = struct {
             .end = end,
         };
 
-        try self.plugin_data.plugin.process(self.process_block, self.plugin_data.plugin.parameters);
+        try self.plugin_data.plugin.process(
+            self.process_block,
+            if (@hasDecl(Plugin, "Parameters"))
+                self.plugin_data.plugin.parameters.?.context
+            else
+                null,
+        );
     }
 };
 
@@ -146,10 +151,9 @@ pub fn processEvent(comptime Plugin: type, clap_plugin: *const c.clap_plugin_t, 
     switch (event.type) {
         c.CLAP_EVENT_PARAM_VALUE => {
             std.debug.assert(@hasDecl(Plugin, "Parameters"));
-            std.debug.assert(data.parameters != null);
 
             const value_event: *const c.clap_event_param_value = @ptrCast(@alignCast(event));
-            const param = data.parameters.?[value_event.param_id];
+            const param = data.plugin_data.plugin.parameters.?.slice[value_event.param_id];
 
             switch (param.*) {
                 inline else => |*p| {
@@ -165,16 +169,8 @@ pub fn processEvent(comptime Plugin: type, clap_plugin: *const c.clap_plugin_t, 
 
 fn ClapPlugin(comptime Plugin: type) type {
     return extern struct {
-        fn init(clap_plugin: [*c]const c.clap_plugin) callconv(.c) bool {
+        fn init(_: [*c]const c.clap_plugin) callconv(.c) bool {
             log.debug("init()", .{});
-
-            if (@hasDecl(Plugin, "Parameters")) {
-                const data = Data.fromClap(clap_plugin);
-                data.parameters = data.plugin_data.plugin.makeParametersSlice(Plugin) catch {
-                    log.err("failed to allocate parameters", .{});
-                    return false;
-                };
-            }
 
             return true;
         }
@@ -183,14 +179,6 @@ fn ClapPlugin(comptime Plugin: type) type {
             log.debug("destroy()", .{});
 
             const data = Data.fromClap(clap_plugin);
-            const allocator = data.plugin_data.plugin.allocator;
-
-            if (@hasDecl(Plugin, "Parameters")) {
-                const Parameters = Plugin.Parameters;
-                allocator.free(data.parameters.?);
-                const ptr: *Parameters = @ptrCast(@alignCast(data.plugin_data.plugin.parameters));
-                allocator.destroy(ptr);
-            }
 
             data.plugin_data.plugin.deinit(Plugin);
             std.heap.page_allocator.destroy(data);
@@ -243,7 +231,7 @@ fn ClapPlugin(comptime Plugin: type) type {
                 switch (event.*.type) {
                     c.CLAP_EVENT_PARAM_VALUE => {
                         const value_event: *const c.clap_event_param_value = @ptrCast(@alignCast(event));
-                        const param = data.parameters.?[value_event.param_id];
+                        const param = data.plugin_data.plugin.parameters.?.slice[value_event.param_id];
 
                         if (comptime Plugin.meta.sample_accurate_automation) {
                             end = value_event.header.time;
