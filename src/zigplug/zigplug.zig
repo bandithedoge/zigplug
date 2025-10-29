@@ -21,7 +21,7 @@ pub const ProcessBlock = struct {
     in: []const []const []const f32 = &.{},
     out: [][][]f32 = &.{},
     samples: usize = 0,
-    sample_rate: u32 = 0,
+    sample_rate_hz: u32 = 0,
 
     pub fn nextNoteEvent(self: *const ProcessBlock) ?NoteEvent {
         return self.fn_nextNoteEvent(self.context);
@@ -31,16 +31,6 @@ pub const ProcessBlock = struct {
 pub const ProcessStatus = enum {
     ok,
     failed,
-};
-
-pub const PluginData = struct {
-    /// Hz
-    sample_rate: u32 = 0,
-    plugin: Plugin,
-
-    pub fn cast(ptr: ?*anyopaque) *PluginData {
-        return @ptrCast(@alignCast(ptr));
-    }
 };
 
 pub const AudioPorts = struct {
@@ -85,7 +75,6 @@ pub const Meta = struct {
 
 pub const Plugin = struct {
     context: *anyopaque,
-
     vtable: struct {
         deinit: *const fn (*anyopaque) void,
         process: *const fn (*anyopaque, ProcessBlock, ?*const anyopaque) anyerror!void,
@@ -96,6 +85,7 @@ pub const Plugin = struct {
         context: *anyopaque,
         slice: []*Parameter,
     },
+    sample_rate_hz: u32 = 0,
 
     pub fn init(comptime T: type) !Plugin {
         if (!@hasDecl(T, "meta") or @TypeOf(T.meta) != Meta)

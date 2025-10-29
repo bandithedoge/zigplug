@@ -19,7 +19,7 @@ pub fn extension(comptime Plugin: type) *const c.clap_plugin_params_t {
                 return false;
 
             const data = clap.Data.fromClap(clap_plugin);
-            const param = data.plugin_data.plugin.parameters.?.slice[index].*;
+            const param = data.plugin.parameters.?.slice[index].*;
 
             switch (param) {
                 inline else => |p| {
@@ -54,7 +54,7 @@ pub fn extension(comptime Plugin: type) *const c.clap_plugin_params_t {
                 return false;
 
             const data = clap.Data.fromClap(clap_plugin);
-            const param = data.plugin_data.plugin.parameters.?.slice[id].*;
+            const param = data.plugin.parameters.?.slice[id].*;
             out.?.* = switch (param) {
                 inline else => |p| @TypeOf(p).toFloat(p.get()),
             };
@@ -67,9 +67,9 @@ pub fn extension(comptime Plugin: type) *const c.clap_plugin_params_t {
                 return false;
 
             const data = clap.Data.fromClap(clap_plugin);
-            const param = data.plugin_data.plugin.parameters.?.slice[id].*;
+            const param = data.plugin.parameters.?.slice[id].*;
 
-            const allocator = data.plugin_data.plugin.allocator;
+            const allocator = data.plugin.allocator;
             var buffer = std.Io.Writer.Allocating.init(allocator);
             defer buffer.deinit();
             const writer = &buffer.writer;
@@ -100,7 +100,7 @@ pub fn extension(comptime Plugin: type) *const c.clap_plugin_params_t {
 
             const data = clap.Data.fromClap(clap_plugin);
 
-            const param = data.plugin_data.plugin.parameters.?.slice[id].*;
+            const param = data.plugin.parameters.?.slice[id].*;
             const text = std.mem.span(value_text);
 
             out.?.* = switch (param) {

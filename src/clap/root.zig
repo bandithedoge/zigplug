@@ -25,11 +25,11 @@ pub const Meta = struct {
 /// Get a pointer to our plugin struct from the CLAP plugin state. This is intended to be used in `Meta.getExtension`.
 pub fn pluginFromClap(clap_plugin: [*c]const c.clap_plugin_t, comptime T: type) *T {
     const data = Data.fromClap(clap_plugin);
-    return @ptrCast(@alignCast(data.plugin_data.plugin.context));
+    return @ptrCast(@alignCast(data.plugin.context));
 }
 
 pub const Data = struct {
-    plugin_data: zigplug.PluginData,
+    plugin: zigplug.Plugin,
     meta: Meta,
 
     process_block: zigplug.ProcessBlock,
@@ -136,10 +136,10 @@ pub const Data = struct {
             .end = end,
         };
 
-        try self.plugin_data.plugin.process(
+        try self.plugin.process(
             self.process_block,
             if (@hasDecl(Plugin, "Parameters"))
-                self.plugin_data.plugin.parameters.?.context
+                self.plugin.parameters.?.context
             else
                 null,
         );
@@ -153,7 +153,7 @@ pub fn processEvent(comptime Plugin: type, clap_plugin: *const c.clap_plugin_t, 
             std.debug.assert(@hasDecl(Plugin, "Parameters"));
 
             const value_event: *const c.clap_event_param_value = @ptrCast(@alignCast(event));
-            const param = data.plugin_data.plugin.parameters.?.slice[value_event.param_id];
+            const param = data.plugin.parameters.?.slice[value_event.param_id];
 
             switch (param.*) {
                 inline else => |*p| {
@@ -180,7 +180,7 @@ fn ClapPlugin(comptime Plugin: type) type {
 
             const data = Data.fromClap(clap_plugin);
 
-            data.plugin_data.plugin.deinit(Plugin);
+            data.plugin.deinit(Plugin);
             std.heap.page_allocator.destroy(data);
             std.heap.page_allocator.destroy(@as(*const c.clap_plugin, clap_plugin));
         }
@@ -190,8 +190,8 @@ fn ClapPlugin(comptime Plugin: type) type {
 
             const data = Data.fromClap(clap_plugin);
 
-            data.plugin_data.sample_rate = @intFromFloat(sample_rate);
-            data.process_block.sample_rate = data.plugin_data.sample_rate;
+            data.plugin.sample_rate_hz = @intFromFloat(sample_rate);
+            data.process_block.sample_rate_hz = data.plugin.sample_rate_hz;
 
             return true;
         }
@@ -231,7 +231,7 @@ fn ClapPlugin(comptime Plugin: type) type {
                 switch (event.*.type) {
                     c.CLAP_EVENT_PARAM_VALUE => {
                         const value_event: *const c.clap_event_param_value = @ptrCast(@alignCast(event));
-                        const param = data.plugin_data.plugin.parameters.?.slice[value_event.param_id];
+                        const param = data.plugin.parameters.?.slice[value_event.param_id];
 
                         if (comptime Plugin.meta.sample_accurate_automation) {
                             end = value_event.header.time;
@@ -355,9 +355,7 @@ fn PluginFactory(comptime Plugin: type) type {
             };
 
             plugin_data.* = .{
-                .plugin_data = .{
-                    .plugin = plugin,
-                },
+                .plugin = plugin,
                 .meta = Plugin.clap_meta,
                 .host = host,
                 .process_block = .{

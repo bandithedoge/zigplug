@@ -15,7 +15,7 @@ pub fn extension(comptime _: type) *const c.clap_plugin_state {
         pub fn save(clap_plugin: [*c]const c.clap_plugin, stream: [*c]const c.clap_ostream) callconv(.c) bool {
             const data = clap.Data.fromClap(clap_plugin);
 
-            for (data.plugin_data.plugin.parameters.?.slice) |parameter| {
+            for (data.plugin.parameters.?.slice) |parameter| {
                 switch (parameter.*) {
                     inline else => |p| {
                         const value = p.get();
@@ -37,7 +37,7 @@ pub fn extension(comptime _: type) *const c.clap_plugin_state {
         pub fn load(clap_plugin: [*c]const c.clap_plugin, stream: [*c]const c.clap_istream) callconv(.c) bool {
             const data = clap.Data.fromClap(clap_plugin);
 
-            for (data.plugin_data.plugin.parameters.?.slice) |parameter| switch (parameter.*) {
+            for (data.plugin.parameters.?.slice) |parameter| switch (parameter.*) {
                 inline else => |*p| {
                     var value = p.get();
                     const size = @sizeOf(@TypeOf(value));

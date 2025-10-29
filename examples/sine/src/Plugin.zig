@@ -51,7 +51,7 @@ pub fn allocator(self: *SineExample) std.mem.Allocator {
 }
 
 pub fn process(self: *SineExample, block: zigplug.ProcessBlock) !void {
-    self.sample_rate = @floatFromInt(block.sample_rate);
+    self.sample_rate = @floatFromInt(block.sample_rate_hz);
 
     var start: u32 = 0;
     var end: u32 = @intCast(block.samples);

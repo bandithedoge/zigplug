@@ -74,7 +74,7 @@ pub const clap_meta: clap.Meta = .{
 gpa: std.heap.GeneralPurposeAllocator(.{}) = .init,
 
 phase: f32 = 0,
-sample_rate: f32 = 0,
+sample_rate_hz: f32 = 0,
 note: ?u8 = null,
 gain: f32 = 0,
 
@@ -91,7 +91,7 @@ pub fn allocator(self: *ClapExtExample) std.mem.Allocator {
 }
 
 pub fn process(self: *ClapExtExample, block: zigplug.ProcessBlock) !void {
-    self.sample_rate = @floatFromInt(block.sample_rate);
+    self.sample_rate_hz = @floatFromInt(block.sample_rate_hz);
 
     var start: u32 = 0;
     var end: u32 = @intCast(block.samples);
@@ -126,7 +126,7 @@ inline fn fillBuffer(self: *ClapExtExample, block: *const zigplug.ProcessBlock, 
 }
 
 fn sine(self: *ClapExtExample, frequency: f32) f32 {
-    const phase_delta = frequency / self.sample_rate;
+    const phase_delta = frequency / self.sample_rate_hz;
 
     const result = @sin(std.math.tau * self.phase);
 
