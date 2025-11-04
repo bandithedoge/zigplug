@@ -9,10 +9,9 @@ pub const Feature = @import("features.zig").Feature;
 
 pub const Meta = struct {
     id: [:0]const u8,
-    // TODO: custom namespaced features
     features: []const Feature,
     /// Non-standard features should be formatted as `$namespace:$feature`
-    extra_features: ?[]const [:0]const u8,
+    extra_features: ?[]const [:0]const u8 = null,
 
     /// This field allows you to extend zigplug's CLAP implementation with extra extensions or override already
     /// supported ones.
