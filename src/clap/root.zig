@@ -302,15 +302,13 @@ fn makeClapDescriptor(comptime Plugin: type) std.mem.Allocator.Error!*const c.cl
         .support_url = meta.support_url orelse meta.url,
         .version = meta.version,
         .description = meta.description,
-        .features = &[_][*c]const u8{null},
-        // TODO: actually implement features
-        // .features = blk: {
-        //     var features: [clap_meta.features.len + 1:null]?[*:0]const u8 = undefined;
-        //     inline for (clap_meta.features, 0..) |feature, i|
-        //         features[i] = feature.toString();
-        //     // features[clap_meta.features.len] = null;
-        //     break :blk &features;
-        // },
+        .features = blk: {
+            const features = try std.heap.page_allocator.alloc([*c]const u8, clap_meta.features.len + 1);
+            inline for (clap_meta.features, 0..) |feature, i|
+                features[i] = feature.toString();
+            features[clap_meta.features.len] = null;
+            break :blk features.ptr;
+        },
     };
 
     return desc;

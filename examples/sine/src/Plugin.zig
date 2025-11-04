@@ -27,8 +27,7 @@ pub const meta: zigplug.Meta = .{
 
 pub const clap_meta: @import("zigplug_clap").Meta = .{
     .id = "com.bandithedoge.zigplug_sine_example",
-    // .features = &.{ .instrument, .synthesizer, .mono },
-    .features = &.{},
+    .features = &.{ .instrument, .synthesizer, .mono },
 };
 
 gpa: std.heap.GeneralPurposeAllocator(.{}) = .init,
