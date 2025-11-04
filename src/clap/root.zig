@@ -11,6 +11,8 @@ pub const Meta = struct {
     id: [:0]const u8,
     // TODO: custom namespaced features
     features: []const Feature,
+    /// Non-standard features should be formatted as `$namespace:$feature`
+    extra_features: ?[]const [:0]const u8,
 
     /// This field allows you to extend zigplug's CLAP implementation with extra extensions or override already
     /// supported ones.
@@ -303,10 +305,20 @@ fn makeClapDescriptor(comptime Plugin: type) std.mem.Allocator.Error!*const c.cl
         .version = meta.version,
         .description = meta.description,
         .features = blk: {
-            const features = try std.heap.page_allocator.alloc([*c]const u8, clap_meta.features.len + 1);
+            const extra_features_len = if (clap_meta.extra_features) |extra_features|
+                extra_features.len
+            else
+                0;
+
+            const features = try std.heap.page_allocator.alloc([*c]const u8, clap_meta.features.len + extra_features_len + 1);
             inline for (clap_meta.features, 0..) |feature, i|
                 features[i] = feature.toString();
-            features[clap_meta.features.len] = null;
+            if (clap_meta.extra_features) |extra_features| {
+                inline for (extra_features, clap_meta.features.len..) |feature, i|
+                    features[i] = feature;
+            }
+
+            features[clap_meta.features.len + extra_features_len] = null;
             break :blk features.ptr;
         },
     };

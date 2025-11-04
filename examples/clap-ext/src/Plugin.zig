@@ -68,6 +68,7 @@ fn getExtension(id: [:0]const u8) ?*const anyopaque {
 pub const clap_meta: clap.Meta = .{
     .id = "com.bandithedoge.zigplug_clap_ext_example",
     .features = &.{ .instrument, .synthesizer, .mono },
+    .extra_features = &.{"custom-namespace:custom-feature"},
     .getExtension = getExtension,
 };
 
