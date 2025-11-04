@@ -9,13 +9,23 @@ const log = std.log.scoped(.zigplug_clap_parameters);
 
 pub fn extension(comptime Plugin: type) *const c.clap_plugin_params_t {
     std.debug.assert(@hasDecl(Plugin, "Parameters"));
+    const Parameters = Plugin.Parameters;
+
+    comptime for (std.meta.fields(Parameters)) |field| {
+        const name = switch (field.defaultValue().?) {
+            inline else => |p| p.options.name,
+        };
+        if (name.len > c.CLAP_NAME_SIZE)
+            @compileError(std.fmt.comptimePrint("Parameter name too long (max {}): '{s}'", .{ c.CLAP_NAME_SIZE, name }));
+    };
+
     const parameters = struct {
         pub fn count(_: [*c]const c.clap_plugin_t) callconv(.c) u32 {
-            return std.meta.fields(Plugin.Parameters).len;
+            return std.meta.fields(Parameters).len;
         }
 
         pub fn get_info(clap_plugin: [*c]const c.clap_plugin_t, index: u32, info: [*c]c.clap_param_info_t) callconv(.c) bool {
-            if (index > std.meta.fields(Plugin.Parameters).len)
+            if (index > std.meta.fields(Parameters).len)
                 return false;
 
             const data = clap.Data.fromClap(clap_plugin);
@@ -50,7 +60,7 @@ pub fn extension(comptime Plugin: type) *const c.clap_plugin_params_t {
         }
 
         pub fn get_value(clap_plugin: [*c]const c.clap_plugin_t, id: c.clap_id, out: [*c]f64) callconv(.c) bool {
-            if (id >= std.meta.fields(Plugin.Parameters).len)
+            if (id >= std.meta.fields(Parameters).len)
                 return false;
 
             const data = clap.Data.fromClap(clap_plugin);
@@ -63,7 +73,7 @@ pub fn extension(comptime Plugin: type) *const c.clap_plugin_params_t {
         }
 
         pub fn value_to_text(clap_plugin: [*c]const c.clap_plugin_t, id: c.clap_id, value: f64, out: [*c]u8, out_capacity: u32) callconv(.c) bool {
-            if (id >= std.meta.fields(Plugin.Parameters).len)
+            if (id >= std.meta.fields(Parameters).len)
                 return false;
 
             const data = clap.Data.fromClap(clap_plugin);
@@ -83,6 +93,10 @@ pub fn extension(comptime Plugin: type) *const c.clap_plugin_params_t {
 
             const formatted = buffer.toOwnedSlice() catch return false;
             defer allocator.free(formatted);
+            if (formatted.len > out_capacity) {
+                log.err("parameter value too long: {s}", .{formatted});
+                return false;
+            }
 
             const size = @min(formatted.len, out_capacity);
 
@@ -95,7 +109,7 @@ pub fn extension(comptime Plugin: type) *const c.clap_plugin_params_t {
         }
 
         pub fn text_to_value(clap_plugin: [*c]const c.clap_plugin_t, id: c.clap_id, value_text: [*c]const u8, out: [*c]f64) callconv(.c) bool {
-            if (id >= std.meta.fields(Plugin.Parameters).len)
+            if (id >= std.meta.fields(Parameters).len)
                 return false;
 
             const data = clap.Data.fromClap(clap_plugin);
