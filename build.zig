@@ -76,6 +76,12 @@ pub fn build(b: *std.Build) !void {
             });
         }
 
+        if (b.lazyDependency("msgpack", .{
+            .target = target,
+            .optimize = optimize,
+        })) |msgpack|
+            clap_module.addImport("msgpack", msgpack.module("msgpack"));
+
         const clap_tests = b.addTest(.{ .root_module = clap_module });
         const run_clap_tests = b.addRunArtifact(clap_tests);
         test_step.dependOn(&run_clap_tests.step);

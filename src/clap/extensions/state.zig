@@ -1,11 +1,6 @@
-// TODO: use some sort of actual binary serialization
-// libs to consider:
-// - https://github.com/ziglibs/s2s
-// - https://github.com/SeanTheGleaming/zig-serialization
-// - https://codeberg.org/hDS9HQLN/ztsl
-
 const c = @import("clap_c");
 const clap = @import("clap");
+const msgpack = @import("msgpack");
 
 const std = @import("std");
 const log = std.log.scoped(.zigplug_clap_state);
@@ -75,26 +70,44 @@ const Reader = struct {
     }
 };
 
-pub fn extension(comptime _: type) *const c.clap_plugin_state {
+pub fn extension(comptime Plugin: type) *const c.clap_plugin_state {
     const state = struct {
         pub fn save(clap_plugin: [*c]const c.clap_plugin, stream: [*c]const c.clap_ostream) callconv(.c) bool {
             const data = clap.Data.fromClap(clap_plugin);
+
             var clap_writer = Writer.init(stream);
             const writer = &clap_writer.writer;
 
-            for (data.plugin.parameters.?.slice) |parameter| {
-                switch (parameter.*) {
-                    inline else => |p| {
-                        const value = p.get();
-                        const bytes = std.mem.asBytes(&value);
-                        writer.writeAll(bytes) catch {
-                            log.err("failed to save parameter '{s}' = {}", .{ p.options.name, value });
+            var reader = std.Io.Reader.failing;
+            var packer = msgpack.packIO(&reader, writer);
+
+            var map = msgpack.Payload.mapPayload(data.plugin.allocator);
+            defer map.free(data.plugin.allocator);
+
+            inline for (data.plugin.parameters.?.slice, std.meta.fields(Plugin.Parameters)) |parameter, field| {
+                map.mapPut(field.name, switch (parameter.*) {
+                    .bool => |p| .boolToPayload(p.get()),
+                    .float => |p| .floatToPayload(p.get()),
+                    .int => |p| .intToPayload(p.get()),
+                    .uint => |p| .uintToPayload(p.get()),
+                }) catch {
+                    switch (parameter.*) {
+                        inline else => |p| {
+                            log.err("failed to save parameter '{s}' = {any}", .{ p.options.name, p.get() });
                             return false;
-                        };
-                        log.debug("saved parameter '{s}' = {any}", .{ p.options.name, value });
-                    },
+                        },
+                    }
+                };
+
+                switch (parameter.*) {
+                    inline else => |p| log.debug("saved parameter '{s}' = {any}", .{ field.name, p.get() }),
                 }
             }
+
+            packer.write(map) catch {
+                log.err("failed to save parameters", .{});
+                return false;
+            };
 
             return true;
         }
@@ -104,21 +117,34 @@ pub fn extension(comptime _: type) *const c.clap_plugin_state {
             var clap_reader = Reader.init(stream);
             const reader = &clap_reader.reader;
 
-            for (data.plugin.parameters.?.slice) |parameter| switch (parameter.*) {
-                inline else => |*p| {
-                    var value = p.get();
-                    const buffer = std.mem.asBytes(&value);
-                    reader.readSliceAll(buffer) catch {
-                        log.err("failed to load parameter '{s}'", .{p.options.name});
-                        return false;
-                    };
-                    p.set(value);
+            var writer = std.Io.Writer.failing;
+            var packer = msgpack.packIO(reader, &writer);
 
-                    log.debug("loaded parameter '{s}' = {any}", .{ p.options.name, value });
-                },
+            const decoded = packer.read(data.plugin.allocator) catch {
+                log.err("failed to read parameters", .{});
+                return false;
             };
+            defer decoded.free(data.plugin.allocator);
 
-            return false;
+            inline for (data.plugin.parameters.?.slice, std.meta.fields(Plugin.Parameters)) |parameter, field| {
+                if (decoded.mapGet(field.name) catch {
+                    log.err("failed to read parameter '{s}'", .{field.name});
+                    return false;
+                }) |value| {
+                    switch (parameter.*) {
+                        .bool => |*p| p.set(value.bool),
+                        .float => |*p| p.set(value.float),
+                        .int => |*p| p.set(value.int),
+                        .uint => |*p| p.set(value.uint),
+                    }
+                }
+
+                switch (parameter.*) {
+                    inline else => |p| log.debug("read parameter '{s}' = {any}", .{ field.name, p.get() }),
+                }
+            }
+
+            return true;
         }
     };
 
