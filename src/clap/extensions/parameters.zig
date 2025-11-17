@@ -29,16 +29,17 @@ pub fn makeParameters(comptime Plugin: type) *const c.clap_plugin_params_t {
                 return false;
 
             const state = clap.State.fromClap(clap_plugin);
-            const param = state.plugin.parameters.?.slice[index].*;
+            const param = state.plugin.parameters.?.slice[index];
 
-            switch (param) {
-                inline else => |p| {
+            switch (param.*) {
+                inline else => |*p| {
                     info.?.* = .{
                         .id = index,
-                        .default_value = @TypeOf(p).toFloat(p.options.default),
-                        .min_value = @TypeOf(p).toFloat(p.options.min),
-                        .max_value = @TypeOf(p).toFloat(p.options.max),
+                        .default_value = @TypeOf(p.*).toFloat(p.options.default),
+                        .min_value = @TypeOf(p.*).toFloat(p.options.min),
+                        .max_value = @TypeOf(p.*).toFloat(p.options.max),
                         .flags = 0,
+                        .cookie = p,
                     };
 
                     if (p.options.automatable)
@@ -130,7 +131,7 @@ pub fn makeParameters(comptime Plugin: type) *const c.clap_plugin_params_t {
         pub fn flush(clap_plugin: [*c]const c.clap_plugin_t, in: [*c]const c.clap_input_events_t, _: [*c]const c.clap_output_events_t) callconv(.c) void {
             for (0..in.?.*.size.?(in)) |i| {
                 const event = in.?.*.get.?(in, @intCast(i)).?;
-                clap.processEvent(Plugin, clap_plugin, event);
+                clap.State.fromClap(clap_plugin).handleEvent(event);
             }
         }
     };

@@ -147,28 +147,34 @@ pub const State = struct {
                 null,
         );
     }
-};
 
-pub fn processEvent(comptime Plugin: type, clap_plugin: *const c.clap_plugin_t, event: *const c.clap_event_header_t) void {
-    const state = State.fromClap(clap_plugin);
-    switch (event.type) {
-        c.CLAP_EVENT_PARAM_VALUE => {
-            std.debug.assert(@hasDecl(Plugin, "Parameters"));
-
-            const value_event: *const c.clap_event_param_value = @ptrCast(@alignCast(event));
-            const param = state.plugin.parameters.?.slice[value_event.param_id];
-
-            switch (param.*) {
-                inline else => |*p| {
-                    const value = @TypeOf(p.*).fromFloat(value_event.value);
-                    p.set(value);
-                    zigplug.log.debug("parameter '{s}' = {any}", .{ p.options.name, value });
-                },
+    // TODO: handle param_mod
+    pub fn handleParamEvent(self: *State, event: *const c.clap_event_param_value) void {
+        const param: *zigplug.Parameter = blk: {
+            if (event.cookie) |ptr|
+                break :blk @ptrCast(@alignCast(ptr))
+            else {
+                @branchHint(.unlikely);
+                break :blk self.plugin.parameters.?.slice[event.param_id];
             }
-        },
-        else => {},
+        };
+
+        switch (param.*) {
+            inline else => |*p| {
+                const value = @TypeOf(p.*).fromFloat(event.value);
+                p.set(value);
+                zigplug.log.debug("parameter '{s}' = {any}", .{ p.options.name, value });
+            },
+        }
     }
-}
+
+    pub fn handleEvent(self: *State, event: *const c.clap_event_header_t) void {
+        switch (event.type) {
+            c.CLAP_EVENT_PARAM_VALUE => self.handleParamEvent(@ptrCast(@alignCast(event))),
+            else => {},
+        }
+    }
+};
 
 fn ClapPlugin(comptime Plugin: type) type {
     return extern struct {
@@ -226,15 +232,11 @@ fn ClapPlugin(comptime Plugin: type) type {
 
             const event_count = clap_process.*.in_events.*.size.?(clap_process.*.in_events);
 
-            var event_i: u32 = 0;
-
-            while (event_i < event_count) {
-                const event = clap_process.*.in_events.*.get.?(clap_process.*.in_events, event_i);
-                event_i += 1;
+            for (0..event_count) |i| {
+                const event = clap_process.*.in_events.*.get.?(clap_process.*.in_events, @intCast(i));
                 switch (event.*.type) {
                     c.CLAP_EVENT_PARAM_VALUE => {
                         const value_event: *const c.clap_event_param_value = @ptrCast(@alignCast(event));
-                        const param = state.plugin.parameters.?.slice[value_event.param_id];
 
                         if (comptime Plugin.meta.sample_accurate_automation) {
                             end = value_event.header.time;
@@ -248,15 +250,9 @@ fn ClapPlugin(comptime Plugin: type) type {
                             end = samples;
                         }
 
-                        switch (param.*) {
-                            inline else => |*p| {
-                                const value = @TypeOf(p.*).fromFloat(value_event.value);
-                                p.set(value);
-                                zigplug.log.debug("parameter '{s}' = {any} at {}", .{ p.options.name, value, value_event.header.time });
-                            },
-                        }
+                        state.handleParamEvent(value_event);
                     },
-                    else => continue,
+                    else => state.handleEvent(event),
                 }
             }
 

@@ -26,7 +26,6 @@ pub const state = c.clap_plugin_state{
 };
 
 // TODO: make Writer and Reader buffered
-// TODO: move msgpack serialization to core
 
 pub const Writer = struct {
     clap_stream: *const c.clap_ostream,
