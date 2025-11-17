@@ -1,0 +1,13 @@
+.{
+    .name = .zigplug_docs,
+    .fingerprint = 0xbb1c02b09e857611,
+    .version = "0.0.0",
+    .minimum_zig_version = "0.15.1",
+
+    .dependencies = .{
+        .core = .{ .path = "../src/core" },
+        .clap = .{ .path = "../src/clap" },
+    },
+
+    .paths = .{""},
+}

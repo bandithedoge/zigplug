@@ -17,7 +17,9 @@ jobs:
         uses: mlugg/setup-zig@v2
 
       - name: Build docs
-        run: zig build docs -Dclap
+        run: |
+          cd docs
+          zig build
 
       - name: Setup Pages
         uses: actions/configure-pages@v5

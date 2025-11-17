@@ -1,4 +1,4 @@
-const zigplug = @import("zigplug.zig");
+const zigplug = @import("root.zig");
 
 const std = @import("std");
 
