@@ -8,7 +8,13 @@ pub fn build(b: *std.Build) !void {
         .root_source_file = b.path("root.zig"),
         .target = target,
         .optimize = optimize,
-        .imports = &.{},
+        .imports = &.{.{
+            .name = "msgpack",
+            .module = b.dependency("msgpack", .{
+                .target = target,
+                .optimize = optimize,
+            }).module("msgpack"),
+        }},
     });
 
     const test_step = b.step("test", "Run unit tests");

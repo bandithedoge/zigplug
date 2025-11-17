@@ -1,6 +1,67 @@
 const zigplug = @import("root.zig");
 
 const std = @import("std");
+const msgpack = @import("msgpack");
+
+pub const State = struct {
+    context: *anyopaque,
+    slice: []*Parameter,
+    allocator: std.mem.Allocator,
+
+    pub fn serialize(self: *const State, writer: *std.Io.Writer) !void {
+        var reader = std.Io.Reader.failing;
+        var packer = msgpack.packIO(&reader, writer);
+
+        var map = msgpack.Payload.mapPayload(self.allocator);
+        defer map.free(self.allocator);
+
+        for (self.slice) |parameter| {
+            const id = switch (parameter.*) {
+                inline else => |*p| p.options.id.?,
+            };
+
+            try map.mapPut(id, switch (parameter.*) {
+                .bool => |p| .boolToPayload(p.get()),
+                .float => |p| .floatToPayload(p.get()),
+                .int => |p| .intToPayload(p.get()),
+                .uint => |p| .uintToPayload(p.get()),
+            });
+
+            switch (parameter.*) {
+                inline else => |p| zigplug.log.debug("saved parameter '{s}' = {any}", .{ id, p.get() }),
+            }
+        }
+
+        try packer.write(map);
+    }
+
+    pub fn deserialize(self: *State, reader: *std.Io.Reader) !void {
+        var writer = std.Io.Writer.failing;
+        var packer = msgpack.packIO(reader, &writer);
+
+        const decoded = try packer.read(self.allocator);
+        defer decoded.free(self.allocator);
+
+        for (self.slice) |parameter| {
+            const id = switch (parameter.*) {
+                inline else => |*p| p.options.id.?,
+            };
+
+            if (try decoded.mapGet(id)) |value| {
+                switch (parameter.*) {
+                    .bool => |*p| p.set(value.bool),
+                    .float => |*p| p.set(value.float),
+                    .int => |*p| p.set(value.int),
+                    .uint => |*p| p.set(value.uint),
+                }
+            }
+
+            switch (parameter.*) {
+                inline else => |p| zigplug.log.debug("read parameter '{s}' = {any}", .{ id, p.get() }),
+            }
+        }
+    }
+};
 
 pub fn Options(comptime T: type) type {
     return struct {

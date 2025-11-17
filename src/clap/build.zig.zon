@@ -10,10 +10,6 @@
             .url = "https://github.com/free-audio/clap/archive/refs/tags/1.2.6.tar.gz",
             .hash = "N-V-__8AABAqOwDxKlwerqbiBlg183KUY751DdoGwZ9N-ZuE",
         },
-        .msgpack = .{
-            .url = "https://github.com/zigcc/zig-msgpack/archive/refs/tags/0.0.16.tar.gz",
-            .hash = "zig_msgpack-0.0.14-evvueHImBQA5zzdD7c4Sl9yJ4JECWb4JaWgvbInsk7Zt",
-        },
     },
 
     .paths = .{"."},

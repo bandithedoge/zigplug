@@ -1,0 +1,15 @@
+.{
+    .name = .zigplug_core,
+    .fingerprint = 0x81c6ac4865198e28,
+    .version = "0.0.0",
+    .minimum_zig_version = "0.15.1",
+
+    .dependencies = .{
+        .msgpack = .{
+            .url = "https://github.com/zigcc/zig-msgpack/archive/refs/tags/0.0.16.tar.gz",
+            .hash = "zig_msgpack-0.0.14-evvueHImBQA5zzdD7c4Sl9yJ4JECWb4JaWgvbInsk7Zt",
+        },
+    },
+
+    .paths = .{""},
+}

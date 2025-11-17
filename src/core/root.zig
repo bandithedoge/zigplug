@@ -73,6 +73,7 @@ pub const Meta = struct {
     sample_accurate_automation: bool = false,
 };
 
+
 pub const Plugin = struct {
     context: *anyopaque,
     vtable: struct {
@@ -81,10 +82,7 @@ pub const Plugin = struct {
     },
 
     allocator: std.mem.Allocator,
-    parameters: ?struct {
-        context: *anyopaque,
-        slice: []*Parameter,
-    },
+    parameters: ?parameters.State,
     sample_rate_hz: u32 = 0,
 
     pub fn init(comptime T: type) !Plugin {
@@ -152,6 +150,7 @@ pub const Plugin = struct {
                 break :blk .{
                     .context = parameters_context,
                     .slice = parameters_slice,
+                    .allocator = allocator,
                 };
             } else null,
         };

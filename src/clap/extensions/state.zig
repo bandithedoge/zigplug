@@ -1,6 +1,5 @@
 const c = @import("clap_c");
 const clap = @import("clap");
-const msgpack = @import("msgpack");
 
 const std = @import("std");
 const log = std.log.scoped(.zigplug_clap_state);
@@ -76,82 +75,19 @@ pub fn extension(comptime _: type) *const c.clap_plugin_state {
         pub fn save(clap_plugin: [*c]const c.clap_plugin, stream: [*c]const c.clap_ostream) callconv(.c) bool {
             const data = clap.Data.fromClap(clap_plugin);
 
-            var clap_writer = Writer.init(stream);
-            const writer = &clap_writer.writer;
-
-            var reader = std.Io.Reader.failing;
-            var packer = msgpack.packIO(&reader, writer);
-
-            var map = msgpack.Payload.mapPayload(data.plugin.allocator);
-            defer map.free(data.plugin.allocator);
-
-            for (data.plugin.parameters.?.slice) |parameter| {
-                const id = switch (parameter.*) {
-                    inline else => |*p| p.options.id.?,
-                };
-
-                map.mapPut(id, switch (parameter.*) {
-                    .bool => |p| .boolToPayload(p.get()),
-                    .float => |p| .floatToPayload(p.get()),
-                    .int => |p| .intToPayload(p.get()),
-                    .uint => |p| .uintToPayload(p.get()),
-                }) catch {
-                    switch (parameter.*) {
-                        inline else => |p| {
-                            log.err("failed to save parameter '{s}' = {any}", .{ p.options.name, p.get() });
-                            return false;
-                        },
-                    }
-                };
-
-                switch (parameter.*) {
-                    inline else => |p| log.debug("saved parameter '{s}' = {any}", .{ id, p.get() }),
-                }
-            }
-
-            packer.write(map) catch |e| {
+            var writer = Writer.init(stream);
+            data.plugin.parameters.?.serialize(&writer.writer) catch |e|
                 log.err("failed to save parameters: {}", .{e});
-                return false;
-            };
 
             return true;
         }
 
         pub fn load(clap_plugin: [*c]const c.clap_plugin, stream: [*c]const c.clap_istream) callconv(.c) bool {
             const data = clap.Data.fromClap(clap_plugin);
-            var clap_reader = Reader.init(stream);
-            const reader = &clap_reader.reader;
 
-            var writer = std.Io.Writer.failing;
-            var packer = msgpack.packIO(reader, &writer);
-
-            const decoded = packer.read(data.plugin.allocator) catch |e| {
+            var reader = Reader.init(stream);
+            data.plugin.parameters.?.deserialize(&reader.reader) catch |e|
                 log.err("failed to read parameters: {}", .{e});
-                return false;
-            };
-            defer decoded.free(data.plugin.allocator);
-
-            for (data.plugin.parameters.?.slice) |parameter| {
-                const id = switch (parameter.*) {
-                    inline else => |*p| p.options.id.?,
-                };
-
-                if (decoded.mapGet(id) catch |e| {
-                    log.err("failed to read parameter '{s}': {}", .{ id, e });
-                    return false;
-                }) |value| {
-                    switch (parameter.*) {
-                        .bool => |*p| p.set(value.bool),
-                        .float => |*p| p.set(value.float),
-                        .int => |*p| p.set(value.int),
-                        .uint => |*p| p.set(value.uint),
-                    }
-                }
-
-                switch (parameter.*) {
-                    inline else => |p| log.debug("read parameter '{s}' = {any}", .{ id, p.get() }),
-                }
-            }
 
             return true;
         }

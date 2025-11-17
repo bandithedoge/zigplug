@@ -17,11 +17,6 @@ pub fn build(b: *std.Build) !void {
         .optimize = optimize,
     });
 
-    const msgpack = b.dependency("msgpack", .{
-        .target = target,
-        .optimize = optimize,
-    });
-
     const module = b.addModule("clap", .{
         .target = target,
         .optimize = optimize,
@@ -29,7 +24,6 @@ pub fn build(b: *std.Build) !void {
         .imports = &.{
             .{ .name = "zigplug", .module = root.module("zigplug") },
             .{ .name = "clap_c", .module = clap_c.createModule() },
-            .{ .name = "msgpack", .module = msgpack.module("msgpack") },
         },
     });
 
