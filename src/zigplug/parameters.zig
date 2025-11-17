@@ -6,6 +6,9 @@ pub fn Options(comptime T: type) type {
     return struct {
         /// Human-readable, "pretty" name to be displayed by the host or plugin GUI
         name: [:0]const u8,
+        /// Optional stable and unique identifier that will be used when saving parameter state. If null, the parameters
+        /// struct field name will be used.
+        id: ?[]const u8 = null,
         /// Parameter will be initialized with this value
         default: T,
         // TODO: this should automatically be set for booleans and enums
@@ -150,7 +153,8 @@ pub const Parameter = union(ParameterType) {
         };
     }
 
-    /// Wrap an enum into an integer parameter with automatic formatting
+    /// Wrap an enum into an integer parameter with automatic formatting. The order of enum values should remain stable
+    /// between plugin versions.
     pub fn choice(comptime T: type, comptime options: ChoiceOptions(T)) Parameter {
         switch (@typeInfo(T)) {
             .@"enum" => |info| {

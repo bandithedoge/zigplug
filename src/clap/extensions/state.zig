@@ -70,7 +70,7 @@ const Reader = struct {
     }
 };
 
-pub fn extension(comptime Plugin: type) *const c.clap_plugin_state {
+pub fn extension(comptime _: type) *const c.clap_plugin_state {
     const state = struct {
         pub fn save(clap_plugin: [*c]const c.clap_plugin, stream: [*c]const c.clap_ostream) callconv(.c) bool {
             const data = clap.Data.fromClap(clap_plugin);
@@ -84,8 +84,12 @@ pub fn extension(comptime Plugin: type) *const c.clap_plugin_state {
             var map = msgpack.Payload.mapPayload(data.plugin.allocator);
             defer map.free(data.plugin.allocator);
 
-            inline for (data.plugin.parameters.?.slice, std.meta.fields(Plugin.Parameters)) |parameter, field| {
-                map.mapPut(field.name, switch (parameter.*) {
+            for (data.plugin.parameters.?.slice) |parameter| {
+                const id = switch (parameter.*) {
+                    inline else => |*p| p.options.id.?,
+                };
+
+                map.mapPut(id, switch (parameter.*) {
                     .bool => |p| .boolToPayload(p.get()),
                     .float => |p| .floatToPayload(p.get()),
                     .int => |p| .intToPayload(p.get()),
@@ -100,7 +104,7 @@ pub fn extension(comptime Plugin: type) *const c.clap_plugin_state {
                 };
 
                 switch (parameter.*) {
-                    inline else => |p| log.debug("saved parameter '{s}' = {any}", .{ field.name, p.get() }),
+                    inline else => |p| log.debug("saved parameter '{s}' = {any}", .{ id, p.get() }),
                 }
             }
 
@@ -126,9 +130,13 @@ pub fn extension(comptime Plugin: type) *const c.clap_plugin_state {
             };
             defer decoded.free(data.plugin.allocator);
 
-            inline for (data.plugin.parameters.?.slice, std.meta.fields(Plugin.Parameters)) |parameter, field| {
-                if (decoded.mapGet(field.name) catch {
-                    log.err("failed to read parameter '{s}'", .{field.name});
+            for (data.plugin.parameters.?.slice) |parameter| {
+                const id = switch (parameter.*) {
+                    inline else => |*p| p.options.id.?,
+                };
+
+                if (decoded.mapGet(id) catch {
+                    log.err("failed to read parameter '{s}'", .{id});
                     return false;
                 }) |value| {
                     switch (parameter.*) {
@@ -140,7 +148,7 @@ pub fn extension(comptime Plugin: type) *const c.clap_plugin_state {
                 }
 
                 switch (parameter.*) {
-                    inline else => |p| log.debug("read parameter '{s}' = {any}", .{ field.name, p.get() }),
+                    inline else => |p| log.debug("read parameter '{s}' = {any}", .{ id, p.get() }),
                 }
             }
 

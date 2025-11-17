@@ -86,7 +86,7 @@ pub fn extension(comptime Plugin: type) *const c.clap_plugin_params_t {
 
             switch (param) {
                 inline else => |p| p.format(writer, @TypeOf(p).fromFloat(value)) catch {
-                    log.err("failed to format parameter '{s}': {}", .{ p.options.name, value });
+                    log.err("failed to format parameter '{s}': {}", .{ p.options.id.?, value });
                     return false;
                 },
             }
@@ -119,7 +119,7 @@ pub fn extension(comptime Plugin: type) *const c.clap_plugin_params_t {
 
             out.?.* = switch (param) {
                 inline else => |p| @TypeOf(p).toFloat(p.parse(text) catch {
-                    log.err("failed to parse parameter '{s}': {s}", .{ p.options.name, value_text });
+                    log.err("failed to parse parameter '{s}': '{s}'", .{ p.options.id.?, value_text });
                     return false;
                 }),
             };

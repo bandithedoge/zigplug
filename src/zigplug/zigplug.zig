@@ -132,7 +132,7 @@ pub const Plugin = struct {
                                 @compileError("`Parameters` struct field '" ++ field.name ++ "' has no default value");
                         }
                     },
-                    else => @compileError("`Parameters` type is not a struct"),
+                    else => @compileError("`Parameters` is not a struct"),
                 }
 
                 const parameters_context = try allocator.create(Parameters);
@@ -142,12 +142,11 @@ pub const Plugin = struct {
                 var parameters_slice = try allocator.alloc(*Parameter, fields.len);
 
                 inline for (fields, 0..) |field, i| {
-                    if (field.type != Parameter)
-                        @compileError("Parameter '" ++ field.name ++ "' is not of type 'zigplug.Parameter'");
-                    if (field.default_value_ptr == null)
-                        @compileError("Parameter '" ++ field.name ++ "' has no default value");
-
-                    parameters_slice[i] = &@field(parameters_context, field.name);
+                    const param = &@field(parameters_context, field.name);
+                    switch (param.*) {
+                        inline else => |*p| p.options.id = p.options.id orelse field.name,
+                    }
+                    parameters_slice[i] = param;
                 }
 
                 break :blk .{
