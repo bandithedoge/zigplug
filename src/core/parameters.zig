@@ -100,61 +100,73 @@ pub fn Options(comptime T: type) type {
 const ParameterType = enum { float, int, uint, bool };
 
 pub const Parameter = union(ParameterType) {
-    fn Inner(comptime Type: type) type {
+    fn Inner(comptime T: type) type {
         return struct {
-            value: std.atomic.Value(Type),
-            options: Options(Type),
+            value: std.atomic.Value(f64),
+            options: Options(T),
 
-            pub fn init(comptime options: Options(Type)) @This() {
-                if (options.special == .bypass and Type != bool)
-                    @compileError("Bypass parameter type must be bool, got " ++ @typeName(Type));
+            pub const param_type: ParameterType = switch (@typeInfo(T)) {
+                .float => .float,
+                .int => |info| switch (info.signedness) {
+                    .signed => .int,
+                    .unsigned => .uint,
+                },
+                .bool => .bool,
+                else => @compileError("unsupported parameter type: " ++ @typeName(T)),
+            };
+
+            pub fn init(comptime options: Options(T)) @This() {
+                if (options.special == .bypass and T != bool)
+                    @compileError("Bypass parameter type must be bool, got " ++ @typeName(T));
 
                 if (options.unit != null and options.format != null)
                     @compileError("Parameter '" ++ options.name ++ "' has both `format` and `unit`, which are mutually exclusive");
 
                 return .{
-                    .value = .init(options.default),
+                    .value = .init(toFloat(options.default)),
                     .options = options,
                 };
             }
 
             pub fn set(self: *@This(), value: anytype) void {
                 self.value.store(switch (@typeInfo(@TypeOf(value))) {
-                    .@"enum" => @intFromEnum(value),
-                    else => value,
+                    .@"enum" => @floatFromInt(@intFromEnum(value)),
+                    else => toFloat(value),
                 }, .unordered);
             }
 
             // TODO: this for enums
-            pub fn get(self: *const @This()) Type {
-                return self.value.load(.unordered);
+            pub fn get(self: *const @This()) T {
+                return fromFloat(self.value.load(.unordered));
             }
 
-            pub fn fromFloat(value: f64) Type {
-                return switch (@typeInfo(Type)) {
+            pub fn fromFloat(value: f64) T {
+                return switch (param_type) {
                     .float => @floatCast(value),
-                    .int => @intFromFloat(value),
+                    .int, .uint => @intFromFloat(value),
                     .bool => value == 1,
-                    else => unreachable,
                 };
             }
 
-            pub fn toFloat(value: Type) f64 {
-                return switch (@typeInfo(@TypeOf(value))) {
+            pub fn toFloat(value: T) f64 {
+                return switch (param_type) {
                     .float => @floatCast(value),
-                    .int => @floatFromInt(value),
-                    .bool => if (value) 1 else 0,
-                    else => unreachable,
+                    .int, .uint => @floatFromInt(value),
+                    .bool => @floatFromInt(@intFromBool(value)),
                 };
             }
 
-            pub fn format(self: *const @This(), writer: *std.Io.Writer, value: Type) std.Io.Writer.Error!void {
+            pub fn modulate(self: *@This(), amount: f64) void {
+                _ = self.value.fetchAdd(amount, .monotonic);
+            }
+
+            pub fn format(self: *const @This(), writer: *std.Io.Writer, value: T) std.Io.Writer.Error!void {
                 if (self.options.format) |f|
                     try f(value, writer)
                 else
                     try writer.print(
-                        switch (@typeInfo(@TypeOf(value))) {
-                            .float, .comptime_float => "{d}{s}",
+                        switch (param_type) {
+                            .float => "{d}{s}",
                             else => "{}{s}",
                         },
                         .{ value, self.options.unit orelse "" },
@@ -163,7 +175,7 @@ pub const Parameter = union(ParameterType) {
                 try writer.flush();
             }
 
-            pub fn parse(self: *const @This(), value: []const u8) !Type {
+            pub fn parse(self: *const @This(), value: []const u8) !T {
                 if (self.options.parse) |f|
                     return f(value);
 
@@ -172,14 +184,11 @@ pub const Parameter = union(ParameterType) {
                 else
                     value;
 
-                return switch (comptime @typeInfo(Type)) {
-                    .float => std.fmt.parseFloat(Type, str),
-                    .int => |t| try (switch (t.signedness) {
-                        .signed => std.fmt.parseInt,
-                        .unsigned => std.fmt.parseUnsigned,
-                    })(Type, str, 10),
+                return switch (param_type) {
+                    .float => std.fmt.parseFloat(T, str),
+                    .int => std.fmt.parseInt(T, str, 10),
+                    .uint => std.fmt.parseUnsigned(T, str, 10),
                     .bool => std.mem.eql(u8, str, "true"),
-                    else => unreachable,
                 };
             }
         };

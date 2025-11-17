@@ -90,7 +90,7 @@ pub const State = struct {
         }
     }
 
-    pub fn process(self: *State, comptime Plugin: type, clap_process: [*c]const c.clap_process, start: u32, end: u32) !void {
+    pub fn processAudio(self: *State, comptime Plugin: type, clap_process: [*c]const c.clap_process, start: u32, end: u32) !void {
         const ports = Plugin.meta.audio_ports.?;
         const inputs = ports.in.len;
         const outputs = ports.out.len;
@@ -148,29 +148,46 @@ pub const State = struct {
         );
     }
 
-    // TODO: handle param_mod
-    pub fn handleParamEvent(self: *State, event: *const c.clap_event_param_value) void {
-        const param: *zigplug.Parameter = blk: {
-            if (event.cookie) |ptr|
-                break :blk @ptrCast(@alignCast(ptr))
-            else {
-                @branchHint(.unlikely);
-                break :blk self.plugin.parameters.?.slice[event.param_id];
-            }
-        };
-
-        switch (param.*) {
-            inline else => |*p| {
-                const value = @TypeOf(p.*).fromFloat(event.value);
-                p.set(value);
-                zigplug.log.debug("parameter '{s}' = {any}", .{ p.options.name, value });
-            },
-        }
-    }
-
     pub fn handleEvent(self: *State, event: *const c.clap_event_header_t) void {
         switch (event.type) {
-            c.CLAP_EVENT_PARAM_VALUE => self.handleParamEvent(@ptrCast(@alignCast(event))),
+            c.CLAP_EVENT_PARAM_VALUE => {
+                const param_event: *const c.clap_event_param_value = @ptrCast(@alignCast(event));
+                const param: *zigplug.Parameter = blk: {
+                    if (param_event.cookie) |ptr|
+                        break :blk @ptrCast(@alignCast(ptr))
+                    else {
+                        @branchHint(.unlikely);
+                        break :blk self.plugin.parameters.?.slice[param_event.param_id];
+                    }
+                };
+
+                switch (param.*) {
+                    inline else => |*p| {
+                        const value = @TypeOf(p.*).fromFloat(param_event.value);
+                        p.set(value);
+                        zigplug.log.debug("parameter '{s}' = {any}", .{ p.options.id.?, value });
+                    },
+                }
+            },
+            c.CLAP_EVENT_PARAM_MOD => {
+                const param_event: *const c.clap_event_param_mod = @ptrCast(@alignCast(event));
+                const param: *zigplug.Parameter = blk: {
+                    if (param_event.cookie) |ptr|
+                        break :blk @ptrCast(@alignCast(ptr))
+                    else {
+                        @branchHint(.unlikely);
+                        break :blk self.plugin.parameters.?.slice[param_event.param_id];
+                    }
+                };
+
+                switch (param.*) {
+                    inline else => |*p| {
+                        const amount = param_event.*.amount;
+                        const modulated = p.modulate(amount);
+                        zigplug.log.debug("parameter '{s}' mod + {any}", .{ p.options.id.?, modulated });
+                    },
+                }
+            },
             else => {},
         }
     }
@@ -235,13 +252,11 @@ fn ClapPlugin(comptime Plugin: type) type {
             for (0..event_count) |i| {
                 const event = clap_process.*.in_events.*.get.?(clap_process.*.in_events, @intCast(i));
                 switch (event.*.type) {
-                    c.CLAP_EVENT_PARAM_VALUE => {
-                        const value_event: *const c.clap_event_param_value = @ptrCast(@alignCast(event));
-
+                    c.CLAP_EVENT_PARAM_VALUE, c.CLAP_EVENT_PARAM_MOD => {
                         if (comptime Plugin.meta.sample_accurate_automation) {
-                            end = value_event.header.time;
+                            end = event.*.time;
 
-                            state.process(Plugin, clap_process, start, end) catch |e| {
+                            state.processAudio(Plugin, clap_process, start, end) catch |e| {
                                 log.err("error while processing: {}", .{e});
                                 return c.CLAP_PROCESS_ERROR;
                             };
@@ -250,13 +265,13 @@ fn ClapPlugin(comptime Plugin: type) type {
                             end = samples;
                         }
 
-                        state.handleParamEvent(value_event);
+                        state.handleEvent(event);
                     },
                     else => state.handleEvent(event),
                 }
             }
 
-            state.process(Plugin, clap_process, start, end) catch |e| {
+            state.processAudio(Plugin, clap_process, start, end) catch |e| {
                 log.err("error while processing: {}", .{e});
                 return c.CLAP_PROCESS_ERROR;
             };
