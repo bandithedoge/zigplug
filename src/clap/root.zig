@@ -335,8 +335,8 @@ fn PluginFactory(comptime Plugin: type) type {
         fn get_plugin_descriptor(_: [*c]const c.clap_plugin_factory, index: u32) callconv(.c) [*c]const c.clap_plugin_descriptor_t {
             log.debug("get_plugin_descriptor({})", .{index});
 
-            return makeClapDescriptor(Plugin) catch {
-                log.err("failed to allocate descriptor", .{});
+            return makeClapDescriptor(Plugin) catch |e| {
+                log.err("failed to allocate descriptor: {}", .{e});
                 return null;
             };
         }
@@ -353,13 +353,13 @@ fn PluginFactory(comptime Plugin: type) type {
 
             std.debug.assert(host != null);
 
-            const plugin_class = std.heap.page_allocator.create(c.clap_plugin_t) catch {
-                log.err("Plugin allocation failed", .{});
+            const plugin_class = std.heap.page_allocator.create(c.clap_plugin_t) catch |e| {
+                log.err("Plugin allocation failed: {}", .{e});
                 return null;
             };
 
-            const plugin_data = std.heap.page_allocator.create(Data) catch {
-                log.err("Plugin allocation failed", .{});
+            const plugin_data = std.heap.page_allocator.create(Data) catch |e| {
+                log.err("Plugin allocation failed: {}", .{e});
                 return null;
             };
 
@@ -374,8 +374,8 @@ fn PluginFactory(comptime Plugin: type) type {
             };
 
             plugin_class.* = .{
-                .desc = makeClapDescriptor(Plugin) catch {
-                    log.err("failed to allocate descriptor", .{});
+                .desc = makeClapDescriptor(Plugin) catch |e| {
+                    log.err("failed to allocate descriptor: {}", .{e});
                     return null;
                 },
                 .plugin_data = plugin_data,

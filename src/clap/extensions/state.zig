@@ -108,8 +108,8 @@ pub fn extension(comptime _: type) *const c.clap_plugin_state {
                 }
             }
 
-            packer.write(map) catch {
-                log.err("failed to save parameters", .{});
+            packer.write(map) catch |e| {
+                log.err("failed to save parameters: {}", .{e});
                 return false;
             };
 
@@ -124,8 +124,8 @@ pub fn extension(comptime _: type) *const c.clap_plugin_state {
             var writer = std.Io.Writer.failing;
             var packer = msgpack.packIO(reader, &writer);
 
-            const decoded = packer.read(data.plugin.allocator) catch {
-                log.err("failed to read parameters", .{});
+            const decoded = packer.read(data.plugin.allocator) catch |e| {
+                log.err("failed to read parameters: {}", .{e});
                 return false;
             };
             defer decoded.free(data.plugin.allocator);
@@ -135,8 +135,8 @@ pub fn extension(comptime _: type) *const c.clap_plugin_state {
                     inline else => |*p| p.options.id.?,
                 };
 
-                if (decoded.mapGet(id) catch {
-                    log.err("failed to read parameter '{s}'", .{id});
+                if (decoded.mapGet(id) catch |e| {
+                    log.err("failed to read parameter '{s}': {}", .{ id, e });
                     return false;
                 }) |value| {
                     switch (parameter.*) {
