@@ -73,20 +73,20 @@ const Reader = struct {
 pub fn extension(comptime _: type) *const c.clap_plugin_state {
     const state = struct {
         pub fn save(clap_plugin: [*c]const c.clap_plugin, stream: [*c]const c.clap_ostream) callconv(.c) bool {
-            const data = clap.Data.fromClap(clap_plugin);
+            const state = clap.State.fromClap(clap_plugin);
 
             var writer = Writer.init(stream);
-            data.plugin.parameters.?.serialize(&writer.writer) catch |e|
+            state.plugin.parameters.?.serialize(&writer.writer) catch |e|
                 log.err("failed to save parameters: {}", .{e});
 
             return true;
         }
 
         pub fn load(clap_plugin: [*c]const c.clap_plugin, stream: [*c]const c.clap_istream) callconv(.c) bool {
-            const data = clap.Data.fromClap(clap_plugin);
+            const state = clap.State.fromClap(clap_plugin);
 
             var reader = Reader.init(stream);
-            data.plugin.parameters.?.deserialize(&reader.reader) catch |e|
+            state.plugin.parameters.?.deserialize(&reader.reader) catch |e|
                 log.err("failed to read parameters: {}", .{e});
 
             return true;

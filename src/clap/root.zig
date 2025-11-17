@@ -3,11 +3,13 @@ const std = @import("std");
 const zigplug = @import("zigplug");
 pub const c = @import("clap_c");
 
+// TODO: use clap.log
 pub const log = std.log.scoped(.zigplug_clap);
 
 pub const Feature = @import("features.zig").Feature;
 
 pub const Meta = struct {
+    /// Reverse URI is recommended
     id: [:0]const u8,
     features: []const Feature,
     /// Non-standard features should be formatted as `$namespace:$feature`
@@ -25,11 +27,11 @@ pub const Meta = struct {
 
 /// Get a pointer to our plugin struct from the CLAP plugin state. This is intended to be used in `Meta.getExtension`.
 pub fn pluginFromClap(clap_plugin: [*c]const c.clap_plugin_t, comptime T: type) *T {
-    const data = Data.fromClap(clap_plugin);
-    return @ptrCast(@alignCast(data.plugin.context));
+    const state = State.fromClap(clap_plugin);
+    return @ptrCast(@alignCast(state.plugin.context));
 }
 
-pub const Data = struct {
+pub const State = struct {
     plugin: zigplug.Plugin,
     meta: Meta,
 
@@ -47,11 +49,11 @@ pub const Data = struct {
     host_timer_support: [*c]const c.clap_host_timer_support_t = null,
     host_gui: [*c]const c.clap_host_gui_t = null,
 
-    pub inline fn fromClap(ptr: [*c]const c.clap_plugin_t) *Data {
+    pub inline fn fromClap(ptr: [*c]const c.clap_plugin_t) *State {
         return @ptrCast(@alignCast(ptr.*.plugin_data));
     }
 
-    pub fn nextNoteEvent(self: *Data) ?zigplug.NoteEvent {
+    pub fn nextNoteEvent(self: *State) ?zigplug.NoteEvent {
         const events = &self.events.?;
         while (true) {
             if (events.i >= events.size)
@@ -88,7 +90,7 @@ pub const Data = struct {
         }
     }
 
-    pub fn process(self: *Data, comptime Plugin: type, clap_process: [*c]const c.clap_process, start: u32, end: u32) !void {
+    pub fn process(self: *State, comptime Plugin: type, clap_process: [*c]const c.clap_process, start: u32, end: u32) !void {
         const ports = Plugin.meta.audio_ports.?;
         const inputs = ports.in.len;
         const outputs = ports.out.len;
@@ -148,13 +150,13 @@ pub const Data = struct {
 };
 
 pub fn processEvent(comptime Plugin: type, clap_plugin: *const c.clap_plugin_t, event: *const c.clap_event_header_t) void {
-    const data = Data.fromClap(clap_plugin);
+    const state = State.fromClap(clap_plugin);
     switch (event.type) {
         c.CLAP_EVENT_PARAM_VALUE => {
             std.debug.assert(@hasDecl(Plugin, "Parameters"));
 
             const value_event: *const c.clap_event_param_value = @ptrCast(@alignCast(event));
-            const param = data.plugin.parameters.?.slice[value_event.param_id];
+            const param = state.plugin.parameters.?.slice[value_event.param_id];
 
             switch (param.*) {
                 inline else => |*p| {
@@ -179,20 +181,20 @@ fn ClapPlugin(comptime Plugin: type) type {
         fn destroy(clap_plugin: [*c]const c.clap_plugin) callconv(.c) void {
             log.debug("destroy()", .{});
 
-            const data = Data.fromClap(clap_plugin);
+            const state = State.fromClap(clap_plugin);
 
-            data.plugin.deinit(Plugin);
-            std.heap.page_allocator.destroy(data);
+            state.plugin.deinit(Plugin);
+            std.heap.page_allocator.destroy(state);
             std.heap.page_allocator.destroy(@as(*const c.clap_plugin, clap_plugin));
         }
 
         fn activate(clap_plugin: [*c]const c.clap_plugin, sample_rate: f64, min_size: u32, max_size: u32) callconv(.c) bool {
             log.debug("activate({}, {}, {})", .{ sample_rate, min_size, max_size });
 
-            const data = Data.fromClap(clap_plugin);
+            const state = State.fromClap(clap_plugin);
 
-            data.plugin.sample_rate_hz = @intFromFloat(sample_rate);
-            data.process_block.sample_rate_hz = data.plugin.sample_rate_hz;
+            state.plugin.sample_rate_hz = @intFromFloat(sample_rate);
+            state.process_block.sample_rate_hz = state.plugin.sample_rate_hz;
 
             return true;
         }
@@ -215,7 +217,7 @@ fn ClapPlugin(comptime Plugin: type) type {
         }
 
         fn process(clap_plugin: [*c]const c.clap_plugin, clap_process: [*c]const c.clap_process_t) callconv(.c) c.clap_process_status {
-            const data = Data.fromClap(clap_plugin);
+            const state = State.fromClap(clap_plugin);
 
             const samples = clap_process.*.frames_count;
 
@@ -232,12 +234,12 @@ fn ClapPlugin(comptime Plugin: type) type {
                 switch (event.*.type) {
                     c.CLAP_EVENT_PARAM_VALUE => {
                         const value_event: *const c.clap_event_param_value = @ptrCast(@alignCast(event));
-                        const param = data.plugin.parameters.?.slice[value_event.param_id];
+                        const param = state.plugin.parameters.?.slice[value_event.param_id];
 
                         if (comptime Plugin.meta.sample_accurate_automation) {
                             end = value_event.header.time;
 
-                            data.process(Plugin, clap_process, start, end) catch |e| {
+                            state.process(Plugin, clap_process, start, end) catch |e| {
                                 log.err("error while processing: {}", .{e});
                                 return c.CLAP_PROCESS_ERROR;
                             };
@@ -258,7 +260,7 @@ fn ClapPlugin(comptime Plugin: type) type {
                 }
             }
 
-            data.process(Plugin, clap_process, start, end) catch |e| {
+            state.process(Plugin, clap_process, start, end) catch |e| {
                 log.err("error while processing: {}", .{e});
                 return c.CLAP_PROCESS_ERROR;
             };
@@ -270,8 +272,8 @@ fn ClapPlugin(comptime Plugin: type) type {
             log.debug("get_extension({s})", .{id});
             const id_slice = std.mem.span(id);
 
-            const data = Data.fromClap(clap_plugin);
-            if (data.meta.getExtension) |getExtension|
+            const state = State.fromClap(clap_plugin);
+            if (state.meta.getExtension) |getExtension|
                 if (getExtension(id_slice)) |ptr|
                     return ptr;
             return @import("extensions.zig").getExtension(Plugin, id_slice);
@@ -358,7 +360,7 @@ fn PluginFactory(comptime Plugin: type) type {
                 return null;
             };
 
-            const plugin_data = std.heap.page_allocator.create(Data) catch |e| {
+            const plugin_data = std.heap.page_allocator.create(State) catch |e| {
                 log.err("Plugin allocation failed: {}", .{e});
                 return null;
             };
@@ -369,7 +371,7 @@ fn PluginFactory(comptime Plugin: type) type {
                 .host = host,
                 .process_block = .{
                     .context = plugin_data,
-                    .fn_nextNoteEvent = @ptrCast(&Data.nextNoteEvent),
+                    .fn_nextNoteEvent = @ptrCast(&State.nextNoteEvent),
                 },
             };
 
