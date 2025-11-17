@@ -7,7 +7,7 @@ const std = @import("std");
 
 const log = std.log.scoped(.zigplug_clap_parameters);
 
-pub fn extension(comptime Plugin: type) *const c.clap_plugin_params_t {
+pub fn makeParameters(comptime Plugin: type) *const c.clap_plugin_params_t {
     std.debug.assert(@hasDecl(Plugin, "Parameters"));
     const Parameters = Plugin.Parameters;
 

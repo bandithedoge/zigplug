@@ -1,7 +1,7 @@
 const std = @import("std");
 const c = @import("clap_c");
 
-pub fn extension(comptime Plugin: type) *const c.clap_plugin_note_ports_t {
+pub fn makeNotePorts(comptime Plugin: type) *const c.clap_plugin_note_ports_t {
     const meta_ports = Plugin.meta.note_ports.?;
 
     comptime for (meta_ports.in ++ meta_ports.out) |port| {

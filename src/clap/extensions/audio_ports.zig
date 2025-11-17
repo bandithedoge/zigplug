@@ -2,7 +2,7 @@ const std = @import("std");
 const zigplug = @import("zigplug");
 const c = @import("clap_c");
 
-pub fn extension(comptime Plugin: type) *const c.clap_plugin_audio_ports_t {
+pub fn makeAudioPorts(comptime Plugin: type) *const c.clap_plugin_audio_ports_t {
     const meta_ports = Plugin.meta.audio_ports.?;
 
     comptime for (meta_ports.in ++ meta_ports.out) |port| {
