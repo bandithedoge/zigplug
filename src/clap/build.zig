@@ -9,23 +9,23 @@ pub fn build(b: *std.Build) !void {
         .optimize = optimize,
     });
 
-    const clap_dep = b.dependency("clap_c", .{});
-
-    const clap_c = b.addTranslateC(.{
-        .root_source_file = clap_dep.path("include/clap/clap.h"),
-        .target = target,
-        .optimize = optimize,
-    });
-
     const module = b.addModule("clap", .{
         .target = target,
         .optimize = optimize,
         .root_source_file = b.path("root.zig"),
         .imports = &.{
             .{ .name = "zigplug", .module = root.module("zigplug") },
-            .{ .name = "clap_c", .module = clap_c.createModule() },
         },
     });
+
+    if (b.lazyDependency("clap_c", .{})) |clap_dep| {
+        const clap_c = b.addTranslateC(.{
+            .root_source_file = clap_dep.path("include/clap/clap.h"),
+            .target = target,
+            .optimize = optimize,
+        });
+        module.addImport("clap_c", clap_c.createModule());
+    }
 
     module.addImport("clap", module);
 

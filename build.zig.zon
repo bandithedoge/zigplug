@@ -6,10 +6,7 @@
 
     .dependencies = .{
         .core = .{ .path = "src/core" },
-        .clap = .{
-            .path = "src/clap",
-            .lazy = true,
-        },
+        .clap = .{ .path = "src/clap", .lazy = true },
     },
     .paths = .{
         "build.zig",

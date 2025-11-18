@@ -9,6 +9,7 @@
         .clap_c = .{
             .url = "https://github.com/free-audio/clap/archive/refs/tags/1.2.6.tar.gz",
             .hash = "N-V-__8AABAqOwDxKlwerqbiBlg183KUY751DdoGwZ9N-ZuE",
+            .lazy = true,
         },
     },
 
