@@ -2,20 +2,21 @@ const c = @import("clap_c");
 const clap = @import("clap");
 
 const std = @import("std");
-const log = std.log.scoped(.zigplug_clap_state);
 
 pub fn save(clap_plugin: [*c]const c.clap_plugin, stream: [*c]const c.clap_ostream) callconv(.c) bool {
     var writer = Writer.init(stream);
-    clap.State.fromClap(clap_plugin).plugin.parameters.?.serialize(&writer.writer) catch |e|
-        log.err("failed to save parameters: {}", .{e});
+    const plugin_state = clap.State.fromClap(clap_plugin);
+    plugin_state.plugin.parameters.?.serialize(&writer.writer) catch |e|
+        plugin_state.plugin.log.err("failed to save parameters: {}", .{e});
 
     return true;
 }
 
 pub fn load(clap_plugin: [*c]const c.clap_plugin, stream: [*c]const c.clap_istream) callconv(.c) bool {
     var reader = Reader.init(stream);
-    clap.State.fromClap(clap_plugin).plugin.parameters.?.deserialize(&reader.reader) catch |e|
-        log.err("failed to read parameters: {}", .{e});
+    const plugin_state = clap.State.fromClap(clap_plugin);
+    plugin_state.plugin.parameters.?.deserialize(&reader.reader) catch |e|
+        plugin_state.plugin.log.err("failed to read parameters: {}", .{e});
 
     return true;
 }
@@ -24,8 +25,6 @@ pub const state = c.clap_plugin_state{
     .save = save,
     .load = load,
 };
-
-// TODO: make Writer and Reader buffered
 
 pub const Writer = struct {
     clap_stream: *const c.clap_ostream,

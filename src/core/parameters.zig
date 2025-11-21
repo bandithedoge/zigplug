@@ -5,6 +5,7 @@ const msgpack = @import("msgpack");
 
 pub const State = struct {
     context: *anyopaque,
+    log: *zigplug.Plugin.Log,
     slice: []*Parameter,
     allocator: std.mem.Allocator,
 
@@ -28,7 +29,7 @@ pub const State = struct {
             });
 
             switch (parameter.*) {
-                inline else => |p| zigplug.log.debug("saved parameter '{s}' = {any}", .{ id, p.get() }),
+                inline else => |p| self.log.debug("saved parameter '{s}' = {any}", .{ id, p.get() }),
             }
         }
 
@@ -57,7 +58,7 @@ pub const State = struct {
             }
 
             switch (parameter.*) {
-                inline else => |p| zigplug.log.debug("read parameter '{s}' = {any}", .{ id, p.get() }),
+                inline else => |p| self.log.debug("read parameter '{s}' = {any}", .{ id, p.get() }),
             }
         }
     }
@@ -91,7 +92,7 @@ pub fn Options(comptime T: type) type {
         /// Pretty-print a value to be shown to the user by the host. Make sure that `format(parse(x)) == x`
         ///
         /// It is not necessary to call `std.Io.Writer.flush`
-        format: ?*const fn (value: T, writer: *std.Io.Writer) std.Io.Writer.Error!void = null,
+        format: ?*const fn (value: T, writer: *std.Io.Writer) anyerror!void = null,
         /// Parse a pretty-printed value written by the user. Make sure that `parse(format(x)) == x`
         parse: ?*const fn (value: []const u8) anyerror!T = null,
     };
@@ -160,7 +161,7 @@ pub const Parameter = union(ParameterType) {
                 _ = self.value.fetchAdd(amount, .monotonic);
             }
 
-            pub fn format(self: *const @This(), writer: *std.Io.Writer, value: T) std.Io.Writer.Error!void {
+            pub fn format(self: *const @This(), writer: *std.Io.Writer, value: T) !void {
                 if (self.options.format) |f|
                     try f(value, writer)
                 else
@@ -229,11 +230,10 @@ pub const Parameter = union(ParameterType) {
         switch (@typeInfo(T)) {
             .@"enum" => |info| {
                 const callbacks = struct {
-                    pub fn format(value: u64, writer: *std.Io.Writer) std.Io.Writer.Error!void {
-                        if (value >= @typeInfo(T).@"enum".fields.len) {
-                            zigplug.log.err("invalid value for enum {s}: {}", .{ @typeName(T), value });
-                            return error.WriteFailed;
-                        }
+                    pub fn format(value: u64, writer: *std.Io.Writer) (std.Io.Writer.Error || error{InvalidEnum})!void {
+                        if (value >= @typeInfo(T).@"enum".fields.len)
+                            return error.InvalidEnum;
+
                         const name = blk: {
                             if (options.map) |map|
                                 for (map.keys(), map.values()) |k, v|
@@ -254,7 +254,6 @@ pub const Parameter = union(ParameterType) {
                                 return field.value;
                         }
 
-                        zigplug.log.err("invalid value for enum {s}: '{s}'", .{ @typeName(T), value });
                         return error.InvalidEnum;
                     }
                 };

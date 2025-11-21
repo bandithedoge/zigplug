@@ -5,8 +5,6 @@ const clap = @import("clap");
 
 const std = @import("std");
 
-const log = std.log.scoped(.zigplug_clap_parameters);
-
 pub fn makeParameters(comptime Plugin: type) *const c.clap_plugin_params_t {
     std.debug.assert(@hasDecl(Plugin, "Parameters"));
     const Parameters = Plugin.Parameters;
@@ -87,7 +85,7 @@ pub fn makeParameters(comptime Plugin: type) *const c.clap_plugin_params_t {
 
             switch (param) {
                 inline else => |p| p.format(writer, @TypeOf(p).fromFloat(value)) catch |e| {
-                    log.err("failed to format parameter '{s}' ({}): {}", .{ p.options.id.?, value, e });
+                    state.plugin.log.err("failed to format parameter '{s}' ({}): {}", .{ p.options.id.?, value, e });
                     return false;
                 },
             }
@@ -95,7 +93,7 @@ pub fn makeParameters(comptime Plugin: type) *const c.clap_plugin_params_t {
             const formatted = buffer.toOwnedSlice() catch return false;
             defer allocator.free(formatted);
             if (formatted.len > out_capacity) {
-                log.err("parameter value too long: {s}", .{formatted});
+                state.plugin.log.err("parameter value too long: {s}", .{formatted});
                 return false;
             }
 
@@ -120,7 +118,7 @@ pub fn makeParameters(comptime Plugin: type) *const c.clap_plugin_params_t {
 
             out.?.* = switch (param) {
                 inline else => |p| @TypeOf(p).toFloat(p.parse(text) catch |e| {
-                    log.err("failed to parse parameter '{s}' ({s}): '{}'", .{ p.options.id.?, value_text, e });
+                    state.plugin.log.err("failed to parse parameter '{s}' ({s}): '{}'", .{ p.options.id.?, value_text, e });
                     return false;
                 }),
             };

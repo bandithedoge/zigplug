@@ -3,9 +3,6 @@ const std = @import("std");
 const zigplug = @import("zigplug");
 pub const c = @import("clap_c");
 
-// TODO: use clap.log
-pub const log = std.log.scoped(.zigplug_clap);
-
 pub const Feature = @import("features.zig").Feature;
 
 pub const Meta = struct {
@@ -31,6 +28,20 @@ pub fn pluginFromClap(clap_plugin: [*c]const c.clap_plugin_t, comptime T: type) 
     return @ptrCast(@alignCast(state.plugin.context));
 }
 
+pub fn hostLog(context: *anyopaque, level: std.log.Level, text: [:0]const u8) void {
+    const state: *State = @ptrCast(@alignCast(context));
+    state.host_log.*.log.?(
+        state.host,
+        switch (level) {
+            .err => c.CLAP_LOG_ERROR,
+            .warn => c.CLAP_LOG_WARNING,
+            .info => c.CLAP_LOG_INFO,
+            .debug => c.CLAP_LOG_DEBUG,
+        },
+        text,
+    );
+}
+
 pub const State = struct {
     plugin: zigplug.Plugin,
     meta: Meta,
@@ -46,6 +57,7 @@ pub const State = struct {
     } = null,
 
     host: [*c]const c.clap_host_t = null,
+    host_log: [*c]const c.clap_host_log_t = null,
     host_timer_support: [*c]const c.clap_host_timer_support_t = null,
     host_gui: [*c]const c.clap_host_gui_t = null,
 
@@ -165,7 +177,6 @@ pub const State = struct {
                     inline else => |*p| {
                         const value = @TypeOf(p.*).fromFloat(param_event.value);
                         p.set(value);
-                        zigplug.log.debug("parameter '{s}' = {any}", .{ p.options.id.?, value });
                     },
                 }
             },
@@ -183,8 +194,7 @@ pub const State = struct {
                 switch (param.*) {
                     inline else => |*p| {
                         const amount = param_event.*.amount;
-                        const modulated = p.modulate(amount);
-                        zigplug.log.debug("parameter '{s}' mod + {any}", .{ p.options.id.?, modulated });
+                        _ = p.modulate(amount);
                     },
                 }
             },
@@ -195,16 +205,16 @@ pub const State = struct {
 
 fn ClapPlugin(comptime Plugin: type) type {
     return extern struct {
-        fn init(_: [*c]const c.clap_plugin) callconv(.c) bool {
-            log.debug("init()", .{});
+        fn init(clap_plugin: [*c]const c.clap_plugin) callconv(.c) bool {
+            const state = State.fromClap(clap_plugin);
+            state.plugin.log.debug("clap_plugin.init()", .{});
 
             return true;
         }
 
         fn destroy(clap_plugin: [*c]const c.clap_plugin) callconv(.c) void {
-            log.debug("destroy()", .{});
-
             const state = State.fromClap(clap_plugin);
+            state.plugin.log.debug("clap_plugin.destroy()", .{});
 
             state.plugin.deinit(Plugin);
             std.heap.page_allocator.destroy(state);
@@ -212,9 +222,8 @@ fn ClapPlugin(comptime Plugin: type) type {
         }
 
         fn activate(clap_plugin: [*c]const c.clap_plugin, sample_rate: f64, min_size: u32, max_size: u32) callconv(.c) bool {
-            log.debug("activate({}, {}, {})", .{ sample_rate, min_size, max_size });
-
             const state = State.fromClap(clap_plugin);
+            state.plugin.log.debug("clap_plugin.activate({}, {}, {})", .{ sample_rate, min_size, max_size });
 
             state.plugin.sample_rate_hz = @intFromFloat(sample_rate);
             state.process_block.sample_rate_hz = state.plugin.sample_rate_hz;
@@ -222,21 +231,25 @@ fn ClapPlugin(comptime Plugin: type) type {
             return true;
         }
 
-        fn deactivate(_: [*c]const c.clap_plugin) callconv(.c) void {
-            log.debug("deactivate()", .{});
+        fn deactivate(clap_plugin: [*c]const c.clap_plugin) callconv(.c) void {
+            const state = State.fromClap(clap_plugin);
+            state.plugin.log.debug("clap_plugin.deactivate()", .{});
         }
 
-        fn start_processing(_: [*c]const c.clap_plugin) callconv(.c) bool {
-            log.debug("start_processing()", .{});
+        fn start_processing(clap_plugin: [*c]const c.clap_plugin) callconv(.c) bool {
+            const state = State.fromClap(clap_plugin);
+            state.plugin.log.debug("clap_plugin.start_processing()", .{});
             return true;
         }
 
-        fn stop_processing(_: [*c]const c.clap_plugin) callconv(.c) void {
-            log.debug("stop_processing()", .{});
+        fn stop_processing(clap_plugin: [*c]const c.clap_plugin) callconv(.c) void {
+            const state = State.fromClap(clap_plugin);
+            state.plugin.log.debug("clap_plugin.stop_processing()", .{});
         }
 
-        fn reset(_: [*c]const c.clap_plugin) callconv(.c) void {
-            log.debug("reset()", .{});
+        fn reset(clap_plugin: [*c]const c.clap_plugin) callconv(.c) void {
+            const state = State.fromClap(clap_plugin);
+            state.plugin.log.debug("clap_plugin.reset()", .{});
         }
 
         fn process(clap_plugin: [*c]const c.clap_plugin, clap_process: [*c]const c.clap_process_t) callconv(.c) c.clap_process_status {
@@ -257,7 +270,7 @@ fn ClapPlugin(comptime Plugin: type) type {
                             end = event.*.time;
 
                             state.processAudio(Plugin, clap_process, start, end) catch |e| {
-                                log.err("error while processing: {}", .{e});
+                                state.plugin.log.err("error while processing: {}", .{e});
                                 return c.CLAP_PROCESS_ERROR;
                             };
 
@@ -272,7 +285,7 @@ fn ClapPlugin(comptime Plugin: type) type {
             }
 
             state.processAudio(Plugin, clap_process, start, end) catch |e| {
-                log.err("error while processing: {}", .{e});
+                state.plugin.log.err("error while processing: {}", .{e});
                 return c.CLAP_PROCESS_ERROR;
             };
 
@@ -280,18 +293,40 @@ fn ClapPlugin(comptime Plugin: type) type {
         }
 
         fn get_extension(clap_plugin: [*c]const c.clap_plugin, id: [*c]const u8) callconv(.c) ?*const anyopaque {
-            log.debug("get_extension({s})", .{id});
-            const id_slice = std.mem.span(id);
-
             const state = State.fromClap(clap_plugin);
+            const id_slice = std.mem.span(id);
+            state.plugin.log.debug("clap_plugin.get_extension({s})", .{id});
+
             if (state.meta.getExtension) |getExtension|
                 if (getExtension(id_slice)) |ptr|
                     return ptr;
-            return @import("extensions.zig").getExtension(Plugin, id_slice);
+
+            if (comptime Plugin.meta.audio_ports != null) {
+                if (std.mem.eql(u8, id_slice, &c.CLAP_EXT_AUDIO_PORTS))
+                    return @import("extensions/audio_ports.zig").makeAudioPorts(Plugin);
+            }
+
+            if (comptime Plugin.meta.note_ports != null) {
+                if (std.mem.eql(u8, id_slice, &c.CLAP_EXT_NOTE_PORTS))
+                    return @import("extensions/note_ports.zig").makeNotePorts(Plugin);
+            }
+
+            if (@hasDecl(Plugin, "Parameters")) {
+                if (std.mem.eql(u8, id_slice, &c.CLAP_EXT_PARAMS))
+                    return @import("extensions/parameters.zig").makeParameters(Plugin);
+
+                if (std.mem.eql(u8, id_slice, &c.CLAP_EXT_STATE))
+                    return &@import("extensions/state.zig").state;
+            }
+
+            state.plugin.log.warn("host requested unsupported extension '{s}'", .{id});
+
+            return null;
         }
 
-        fn on_main_thread(_: [*c]const c.clap_plugin) callconv(.c) void {
-            log.debug("on_main_thread()", .{});
+        fn on_main_thread(clap_plugin: [*c]const c.clap_plugin) callconv(.c) void {
+            const state = State.fromClap(clap_plugin);
+            state.plugin.log.debug("clap_plugin.on_main_thread()", .{});
         }
     };
 }
@@ -341,38 +376,32 @@ fn makeClapDescriptor(comptime Plugin: type) std.mem.Allocator.Error!*const c.cl
 fn PluginFactory(comptime Plugin: type) type {
     return extern struct {
         fn get_plugin_count(_: [*c]const c.clap_plugin_factory) callconv(.c) u32 {
-            log.debug("get_plugin_count()", .{});
             return 1;
         }
 
-        fn get_plugin_descriptor(_: [*c]const c.clap_plugin_factory, index: u32) callconv(.c) [*c]const c.clap_plugin_descriptor_t {
-            log.debug("get_plugin_descriptor({})", .{index});
-
-            return makeClapDescriptor(Plugin) catch |e| {
-                log.err("failed to allocate descriptor: {}", .{e});
+        fn get_plugin_descriptor(_: [*c]const c.clap_plugin_factory, _: u32) callconv(.c) [*c]const c.clap_plugin_descriptor_t {
+            return makeClapDescriptor(Plugin) catch {
                 return null;
             };
         }
 
         fn create_plugin(_: [*c]const c.clap_plugin_factory, host: [*c]const c.clap_host_t, plugin_id: [*c]const u8) callconv(.c) [*c]const c.clap_plugin_t {
-            log.debug("create_plugin({s})", .{plugin_id});
-
             const clap_plugin = ClapPlugin(Plugin);
 
-            const plugin = zigplug.Plugin.init(Plugin) catch |e| {
-                log.err("failed to initialize plugin: {}", .{e});
+            const plugin = zigplug.Plugin.init(Plugin) catch
                 return null;
-            };
+
+            plugin.log.debug("clap_plugin_factory.create_plugin({s})", .{plugin_id});
 
             std.debug.assert(host != null);
 
             const plugin_class = std.heap.page_allocator.create(c.clap_plugin_t) catch |e| {
-                log.err("Plugin allocation failed: {}", .{e});
+                plugin.log.err("plugin allocation failed: {}", .{e});
                 return null;
             };
 
             const plugin_data = std.heap.page_allocator.create(State) catch |e| {
-                log.err("Plugin allocation failed: {}", .{e});
+                plugin.log.err("plugin allocation failed: {}", .{e});
                 return null;
             };
 
@@ -386,9 +415,19 @@ fn PluginFactory(comptime Plugin: type) type {
                 },
             };
 
+            if (host.*.get_extension.?(host, &c.CLAP_EXT_LOG)) |ptr| {
+                plugin.log.debug("host has clap.log extension", .{});
+                plugin_data.host_log = @ptrCast(@alignCast(ptr));
+                plugin_data.plugin.log.* = .{
+                    .context = plugin_data,
+                    .logFn = hostLog,
+                    .allocator = plugin_data.plugin.allocator,
+                };
+            }
+
             plugin_class.* = .{
                 .desc = makeClapDescriptor(Plugin) catch |e| {
-                    log.err("failed to allocate descriptor: {}", .{e});
+                    plugin.log.err("failed to allocate descriptor: {}", .{e});
                     return null;
                 },
                 .plugin_data = plugin_data,
@@ -411,19 +450,13 @@ fn PluginFactory(comptime Plugin: type) type {
 
 fn PluginEntry(factory: c.clap_plugin_factory_t) type {
     return extern struct {
-        fn init(plugin_path: [*c]const u8) callconv(.c) bool {
-            log.debug("init({s})", .{plugin_path});
-
+        fn init(_: [*c]const u8) callconv(.c) bool {
             return true;
         }
 
-        fn deinit() callconv(.c) void {
-            log.debug("deinit()", .{});
-        }
+        fn deinit() callconv(.c) void {}
 
         fn get_factory(factory_id: [*c]const u8) callconv(.c) ?*const anyopaque {
-            log.debug("get_factory({s})", .{factory_id});
-
             const id = std.mem.span(factory_id);
 
             if (std.mem.eql(u8, id, &c.CLAP_PLUGIN_FACTORY_ID)) {

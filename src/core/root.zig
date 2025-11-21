@@ -3,8 +3,6 @@ const std = @import("std");
 pub const parameters = @import("parameters.zig");
 pub const Parameter = parameters.Parameter;
 
-pub const log = std.log.scoped(.zigplug);
-
 pub const NoteEvent = struct {
     type: enum { on, off, choke, end },
     /// From C-1 to G9. 60 is middle C, `null` means wildcard
@@ -73,8 +71,58 @@ pub const Meta = struct {
     sample_accurate_automation: bool = false,
 };
 
-
 pub const Plugin = struct {
+    pub const Log = struct {
+        context: *anyopaque,
+        logFn: *const fn (
+            context: *anyopaque,
+            level: std.log.Level,
+            text: [:0]const u8,
+        ) void = default,
+        allocator: std.mem.Allocator,
+
+        pub fn default(_: *anyopaque, level: std.log.Level, text: [:0]const u8) void {
+            switch (level) {
+                .err => std.log.err("{s}", .{text}),
+                .warn => std.log.warn("{s}", .{text}),
+                .info => std.log.info("{s}", .{text}),
+                .debug => std.log.debug("{s}", .{text}),
+            }
+        }
+
+        pub inline fn debug(self: *const Log, comptime format: []const u8, args: anytype) void {
+            if (comptime std.log.defaultLogEnabled(.debug)) {
+                const text = std.fmt.allocPrintSentinel(self.allocator, format, args, 0) catch return;
+                defer self.allocator.free(text);
+                self.logFn(self.context, .debug, text);
+            }
+        }
+
+        pub inline fn err(self: *const Log, comptime format: []const u8, args: anytype) void {
+            if (comptime std.log.defaultLogEnabled(.err)) {
+                const text = std.fmt.allocPrintSentinel(self.allocator, format, args, 0) catch return;
+                defer self.allocator.free(text);
+                self.logFn(self.context, .err, text);
+            }
+        }
+
+        pub inline fn info(self: *const Log, comptime format: []const u8, args: anytype) void {
+            if (comptime std.log.defaultLogEnabled(.info)) {
+                const text = std.fmt.allocPrintSentinel(self.allocator, format, args, 0) catch return;
+                defer self.allocator.free(text);
+                self.logFn(self.context, .info, text);
+            }
+        }
+
+        pub inline fn warn(self: *const Log, comptime format: []const u8, args: anytype) void {
+            if (comptime std.log.defaultLogEnabled(.warn)) {
+                const text = std.fmt.allocPrintSentinel(self.allocator, format, args, 0) catch return;
+                defer self.allocator.free(text);
+                self.logFn(self.context, .warn, text);
+            }
+        }
+    };
+
     context: *anyopaque,
     vtable: struct {
         deinit: *const fn (*anyopaque) void,
@@ -82,6 +130,7 @@ pub const Plugin = struct {
     },
 
     allocator: std.mem.Allocator,
+    log: *Log,
     parameters: ?parameters.State,
     sample_rate_hz: u32 = 0,
 
@@ -112,6 +161,13 @@ pub const Plugin = struct {
 
         const allocator = context.allocator();
 
+        const log = try allocator.create(Log);
+        log.* = .{
+            // SAFETY: only accessed when logFn is different than defaultLog
+            .context = undefined,
+            .allocator = allocator,
+        };
+
         return .{
             .context = context,
             .vtable = .{
@@ -119,6 +175,7 @@ pub const Plugin = struct {
                 .process = @ptrCast(&T.process),
             },
             .allocator = allocator,
+            .log = log,
             .parameters = if (@hasDecl(T, "Parameters")) blk: {
                 const Parameters = T.Parameters;
                 switch (@typeInfo(Parameters)) {
@@ -149,6 +206,7 @@ pub const Plugin = struct {
 
                 break :blk .{
                     .context = parameters_context,
+                    .log = log,
                     .slice = parameters_slice,
                     .allocator = allocator,
                 };
@@ -158,6 +216,7 @@ pub const Plugin = struct {
 
     pub inline fn deinit(self: *Plugin, comptime P: type) void {
         if (@hasDecl(P, "Parameters")) {
+            self.allocator.destroy(self.log);
             const params = self.parameters.?;
             self.allocator.free(params.slice);
             const ptr: *P.Parameters = @ptrCast(@alignCast(params.context));

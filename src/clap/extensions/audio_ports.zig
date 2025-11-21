@@ -1,5 +1,4 @@
 const std = @import("std");
-const zigplug = @import("zigplug");
 const c = @import("clap_c");
 
 pub fn makeAudioPorts(comptime Plugin: type) *const c.clap_plugin_audio_ports_t {
