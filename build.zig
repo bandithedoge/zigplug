@@ -13,11 +13,11 @@ pub fn build(b: *std.Build) !void {
 
     const test_step = b.step("test", "Run unit tests");
 
-    const core_tests = b.addSystemCommand(&.{ "zig", "build", "test" });
+    const core_tests = b.addSystemCommand(&.{ b.graph.zig_exe, "build", "test" });
     core_tests.setCwd(b.path("src/core"));
     test_step.dependOn(&core_tests.step);
 
-    const clap_tests = b.addSystemCommand(&.{ "zig", "build", "test" });
+    const clap_tests = b.addSystemCommand(&.{ b.graph.zig_exe, "build", "test" });
     clap_tests.setCwd(b.path("src/clap"));
     test_step.dependOn(&clap_tests.step);
 }
