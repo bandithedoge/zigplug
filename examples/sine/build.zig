@@ -13,15 +13,23 @@ pub fn build(b: *std.Build) !void {
     const plugin = b.createModule(.{
         .target = target,
         .optimize = optimize,
-        .root_source_file = b.path("src/Plugin.zig"),
+        .root_source_file = b.path("src/SineExample.zig"),
         .imports = &.{
             .{ .name = "zigplug", .module = zigplug_dep.module("zigplug") },
-            .{ .name = "zigplug_clap", .module = zigplug.clapModule(b, target, optimize) },
         },
     });
 
     _ = try zigplug.addClap(b, .{
         .name = "sine",
-        .root_module = plugin,
+        .root_module = b.createModule(.{
+            .target = target,
+            .optimize = optimize,
+            .root_source_file = b.path("src/entry_clap.zig"),
+            .imports = &.{
+                .{ .name = "SineExample", .module = plugin },
+
+                .{ .name = "zigplug_clap", .module = zigplug.clapModule(b, target, optimize) },
+            },
+        }),
     });
 }

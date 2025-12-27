@@ -1,11 +1,11 @@
-const SineExample = @This();
+const ClapExtExample = @This();
 
 const std = @import("std");
 
 const zigplug = @import("zigplug");
 
 pub const meta: zigplug.Meta = .{
-    .name = "zigplug sine example",
+    .name = "zigplug clap extension example",
     .vendor = "bandithedoge",
     .url = "https://bandithedoge.com/zigplug",
     .version = "0.1.0",
@@ -25,32 +25,27 @@ pub const meta: zigplug.Meta = .{
     },
 };
 
-pub const clap_meta: @import("zigplug_clap").Meta = .{
-    .id = "com.bandithedoge.zigplug_sine_example",
-    .features = &.{ .instrument, .synthesizer, .mono },
-};
-
 gpa: std.heap.GeneralPurposeAllocator(.{}) = .init,
 
 phase: f32 = 0,
-sample_rate: f32 = 0,
+sample_rate_hz: f32 = 0,
 note: ?u8 = null,
 gain: f32 = 0,
 
-pub fn init() !SineExample {
+pub fn init() !ClapExtExample {
     return .{};
 }
 
-pub fn deinit(self: *SineExample) void {
+pub fn deinit(self: *ClapExtExample) void {
     _ = self.gpa.deinit();
 }
 
-pub fn allocator(self: *SineExample) std.mem.Allocator {
+pub fn allocator(self: *ClapExtExample) std.mem.Allocator {
     return self.gpa.allocator();
 }
 
-pub fn process(self: *SineExample, block: zigplug.ProcessBlock) !void {
-    self.sample_rate = @floatFromInt(block.sample_rate_hz);
+pub fn process(self: *ClapExtExample, block: zigplug.ProcessBlock) !void {
+    self.sample_rate_hz = @floatFromInt(block.sample_rate_hz);
 
     var start: u32 = 0;
     var end: u32 = @intCast(block.samples);
@@ -74,7 +69,7 @@ pub fn process(self: *SineExample, block: zigplug.ProcessBlock) !void {
     self.fillBuffer(&block, start, end);
 }
 
-inline fn fillBuffer(self: *SineExample, block: *const zigplug.ProcessBlock, start: u32, end: u32) void {
+inline fn fillBuffer(self: *ClapExtExample, block: *const zigplug.ProcessBlock, start: u32, end: u32) void {
     for (start..end) |i| {
         for (block.out) |port| {
             for (port) |channel| {
@@ -84,8 +79,8 @@ inline fn fillBuffer(self: *SineExample, block: *const zigplug.ProcessBlock, sta
     }
 }
 
-fn sine(self: *SineExample, frequency: f32) f32 {
-    const phase_delta = frequency / self.sample_rate;
+fn sine(self: *ClapExtExample, frequency: f32) f32 {
+    const phase_delta = frequency / self.sample_rate_hz;
 
     const result = @sin(std.math.tau * self.phase);
 

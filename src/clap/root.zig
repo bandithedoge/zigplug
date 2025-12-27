@@ -203,7 +203,7 @@ pub const State = struct {
     }
 };
 
-fn ClapPlugin(comptime Plugin: type) type {
+fn ClapPlugin(comptime Plugin: type, meta: Meta) type {
     return extern struct {
         fn init(clap_plugin: [*c]const c.clap_plugin) callconv(.c) bool {
             const state = State.fromClap(clap_plugin);
@@ -266,7 +266,7 @@ fn ClapPlugin(comptime Plugin: type) type {
                 const event = clap_process.*.in_events.*.get.?(clap_process.*.in_events, @intCast(i));
                 switch (event.*.type) {
                     c.CLAP_EVENT_PARAM_VALUE, c.CLAP_EVENT_PARAM_MOD => {
-                        if (comptime Plugin.meta.sample_accurate_automation) {
+                        if (Plugin.meta.sample_accurate_automation) {
                             end = event.*.time;
 
                             state.processAudio(Plugin, clap_process, start, end) catch |e| {
@@ -297,16 +297,16 @@ fn ClapPlugin(comptime Plugin: type) type {
             const id_slice = std.mem.span(id);
             state.plugin.log.debug("clap_plugin.get_extension({s})", .{id});
 
-            if (state.meta.getExtension) |getExtension|
+            if (meta.getExtension) |getExtension|
                 if (getExtension(id_slice)) |ptr|
                     return ptr;
 
-            if (comptime Plugin.meta.audio_ports != null) {
+            if (Plugin.meta.audio_ports != null) {
                 if (std.mem.eql(u8, id_slice, &c.CLAP_EXT_AUDIO_PORTS))
                     return @import("extensions/audio_ports.zig").makeAudioPorts(Plugin);
             }
 
-            if (comptime Plugin.meta.note_ports != null) {
+            if (Plugin.meta.note_ports != null) {
                 if (std.mem.eql(u8, id_slice, &c.CLAP_EXT_NOTE_PORTS))
                     return @import("extensions/note_ports.zig").makeNotePorts(Plugin);
             }
@@ -331,9 +331,9 @@ fn ClapPlugin(comptime Plugin: type) type {
     };
 }
 
-fn makeClapDescriptor(comptime Plugin: type) std.mem.Allocator.Error!*const c.clap_plugin_descriptor {
-    const meta: zigplug.Meta = Plugin.meta;
-    const clap_meta: Meta = Plugin.clap_meta;
+// TODO: make this comptime?
+inline fn makeClapDescriptor(comptime Plugin: type, comptime meta: Meta) std.mem.Allocator.Error!*const c.clap_plugin_descriptor {
+    const plugin_meta: zigplug.Meta = Plugin.meta;
 
     const desc = try std.heap.page_allocator.create(c.clap_plugin_descriptor_t);
     desc.* = .{
@@ -343,29 +343,29 @@ fn makeClapDescriptor(comptime Plugin: type) std.mem.Allocator.Error!*const c.cl
             .revision = c.CLAP_VERSION_REVISION,
         },
 
-        .id = clap_meta.id,
-        .name = meta.name,
-        .vendor = meta.vendor,
-        .url = meta.url,
-        .manual_url = meta.manual_url orelse meta.url,
-        .support_url = meta.support_url orelse meta.url,
-        .version = meta.version,
-        .description = meta.description,
+        .id = meta.id,
+        .name = plugin_meta.name,
+        .vendor = plugin_meta.vendor,
+        .url = plugin_meta.url,
+        .manual_url = plugin_meta.manual_url orelse plugin_meta.url,
+        .support_url = plugin_meta.support_url orelse plugin_meta.url,
+        .version = plugin_meta.version,
+        .description = plugin_meta.description,
         .features = blk: {
-            const extra_features_len = if (clap_meta.extra_features) |extra_features|
+            const extra_features_len = if (meta.extra_features) |extra_features|
                 extra_features.len
             else
                 0;
 
-            const features = try std.heap.page_allocator.alloc([*c]const u8, clap_meta.features.len + extra_features_len + 1);
-            inline for (clap_meta.features, 0..) |feature, i|
+            const features = try std.heap.page_allocator.alloc([*c]const u8, meta.features.len + extra_features_len + 1);
+            inline for (meta.features, 0..) |feature, i|
                 features[i] = feature.toString();
-            if (clap_meta.extra_features) |extra_features| {
-                inline for (extra_features, clap_meta.features.len..) |feature, i|
+            if (meta.extra_features) |extra_features| {
+                inline for (extra_features, meta.features.len..) |feature, i|
                     features[i] = feature;
             }
 
-            features[clap_meta.features.len + extra_features_len] = null;
+            features[meta.features.len + extra_features_len] = null;
             break :blk features.ptr;
         },
     };
@@ -373,20 +373,20 @@ fn makeClapDescriptor(comptime Plugin: type) std.mem.Allocator.Error!*const c.cl
     return desc;
 }
 
-fn PluginFactory(comptime Plugin: type) type {
+fn PluginFactory(comptime Plugin: type, meta: Meta) type {
     return extern struct {
         fn get_plugin_count(_: [*c]const c.clap_plugin_factory) callconv(.c) u32 {
             return 1;
         }
 
         fn get_plugin_descriptor(_: [*c]const c.clap_plugin_factory, _: u32) callconv(.c) [*c]const c.clap_plugin_descriptor_t {
-            return makeClapDescriptor(Plugin) catch {
+            return makeClapDescriptor(Plugin, meta) catch {
                 return null;
             };
         }
 
         fn create_plugin(_: [*c]const c.clap_plugin_factory, host: [*c]const c.clap_host_t, plugin_id: [*c]const u8) callconv(.c) [*c]const c.clap_plugin_t {
-            const clap_plugin = ClapPlugin(Plugin);
+            const clap_plugin = ClapPlugin(Plugin, meta);
 
             const plugin = zigplug.Plugin.init(Plugin) catch
                 return null;
@@ -407,7 +407,7 @@ fn PluginFactory(comptime Plugin: type) type {
 
             plugin_data.* = .{
                 .plugin = plugin,
-                .meta = Plugin.clap_meta,
+                .meta = meta,
                 .host = host,
                 .process_block = .{
                     .context = plugin_data,
@@ -426,7 +426,7 @@ fn PluginFactory(comptime Plugin: type) type {
             }
 
             plugin_class.* = .{
-                .desc = makeClapDescriptor(Plugin) catch |e| {
+                .desc = makeClapDescriptor(Plugin, meta) catch |e| {
                     plugin.log.err("failed to allocate descriptor: {}", .{e});
                     return null;
                 },
@@ -468,15 +468,64 @@ fn PluginEntry(factory: c.clap_plugin_factory_t) type {
     };
 }
 
-pub fn clapEntry(comptime Plugin: type) c.clap_plugin_entry_t {
-    const factory = PluginFactory(Plugin);
-    if (!@hasDecl(Plugin, "clap_meta") or @TypeOf(Plugin.clap_meta) != Meta)
-        @compileError(
-            \\CLAP plugin is missing a metadata object.
-            \\
-            \\Add one to your root plugin struct:
-            \\`pub const clap_meta = @import("zigplug_clap").Meta{...};`
-        );
+/// Export a CLAP entry point from a zigplug module.
+///
+/// # Example
+///
+/// ## `build.zig`
+///
+/// ```zig
+/// const std = @import("std");
+/// const zigplug = @import("zigplug");
+///
+/// pub fn build(b: *std.Build) !void {
+///     const target = b.standardTargetOptions(.{});
+///     const optimize = b.standardOptimizeOption(.{});
+///
+///     const zigplug_dep = b.dependency("zigplug", .{
+///         .target = target,
+///         .optimize = optimize,
+///     });
+///
+///     const plugin = b.createModule(.{
+///         .target = target,
+///         .optimize = optimize,
+///         .root_source_file = b.path("src/Plugin.zig"),
+///         .imports = &.{
+///             .{ .name = "zigplug", .module = zigplug_dep.module("zigplug") },
+///         },
+///     });
+///
+///     _ = try zigplug.addClap(b, .{
+///         .name = "my-plugin",
+///         .root_module = b.createModule(.{
+///             .target = target,
+///             .optimize = optimize,
+///             .root_source_file = b.path("src/entry_clap.zig"),
+///             .imports = &.{
+///                 .{ .name = "Plugin", .module = plugin },
+///
+///                 .{ .name = "zigplug_clap", .module = zigplug.clapModule(b, target, optimize) },
+///             },
+///         }),
+///     });
+/// }
+/// ```
+///
+/// ## `entry_clap.zig`
+///
+/// ```zig
+/// const Plugin = @import("Plugin");
+///
+/// comptime {
+///     @import("zigplug_clap").exportClap(Plugin, .{
+///         .id = "com.example.my-plugin",
+///         .features = &.{ .audio_effect, .mono, .stereo },
+///     });
+/// }
+/// ```
+pub inline fn exportClap(comptime Plugin: type, meta: Meta) void {
+    const factory = PluginFactory(Plugin, meta);
 
     const factory_c: c.clap_plugin_factory_t = .{
         .get_plugin_count = factory.get_plugin_count,
@@ -486,7 +535,7 @@ pub fn clapEntry(comptime Plugin: type) c.clap_plugin_entry_t {
 
     const entry = PluginEntry(factory_c);
 
-    return .{
+    @export(&c.clap_plugin_entry{
         .clap_version = .{
             .major = c.CLAP_VERSION_MAJOR,
             .minor = c.CLAP_VERSION_MINOR,
@@ -496,7 +545,9 @@ pub fn clapEntry(comptime Plugin: type) c.clap_plugin_entry_t {
         .init = entry.init,
         .deinit = entry.deinit,
         .get_factory = entry.get_factory,
-    };
+    }, .{
+        .name = "clap_entry",
+    });
 }
 
 comptime {

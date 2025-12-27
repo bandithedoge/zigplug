@@ -40,7 +40,7 @@ pub fn clapModule(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std
 pub const Options = struct {
     /// Doesn't have to match the display name in your plugin's descriptor
     name: []const u8,
-    /// Module that contains `plugin()`
+    /// This module must export a CLAP entry point
     root_module: *std.Build.Module,
     /// Whether to add the resulting compile step to your project's top level install step
     install: bool = true,
@@ -48,30 +48,13 @@ pub const Options = struct {
 
 /// If `options.install` is true, the result will be installed to `lib/clap/{options.name}.clap`
 pub fn addClap(b: *std.Build, options: Options) !*std.Build.Step.Compile {
-    const entry = b.addWriteFile("entry.zig",
-        \\ export const clap_entry = @import("clap").clapEntry(@import("plugin_root"));
-    );
-
-    const target = options.root_module.resolved_target.?;
-    const optimize = options.root_module.optimize.?;
-
     const lib = b.addLibrary(.{
         .name = try std.fmt.allocPrint(b.allocator, "{s}_clap", .{options.name}),
         .linkage = .dynamic,
         // printing to stdout/stderr segfaults without this, possibly a bug in zig's new x86 backend
         .use_llvm = true,
-        .root_module = b.createModule(.{
-            .target = target,
-            .optimize = optimize,
-            .root_source_file = entry.getDirectory().path(b, "entry.zig"),
-            .imports = &.{
-                .{ .name = "plugin_root", .module = options.root_module },
-                .{ .name = "clap", .module = clapModule(b, target, optimize) },
-            },
-        }),
+        .root_module = options.root_module,
     });
-
-    lib.step.dependOn(&entry.step);
 
     if (options.install) {
         const install = b.addInstallArtifact(lib, .{

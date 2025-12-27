@@ -54,11 +54,6 @@ pub const meta: zigplug.Meta = .{
     .sample_accurate_automation = true,
 };
 
-pub const clap_meta: @import("zigplug_clap").Meta = .{
-    .id = "com.bandithedoge.zigplug_gain_example",
-    .features = &.{ .audio_effect, .mono, .stereo, .utility },
-};
-
 gpa: std.heap.GeneralPurposeAllocator(.{}) = .init,
 
 pub fn init() !GainExample {

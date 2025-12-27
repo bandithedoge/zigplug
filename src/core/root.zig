@@ -215,8 +215,9 @@ pub const Plugin = struct {
     }
 
     pub inline fn deinit(self: *Plugin, comptime P: type) void {
+        self.allocator.destroy(self.log);
+
         if (@hasDecl(P, "Parameters")) {
-            self.allocator.destroy(self.log);
             const params = self.parameters.?;
             self.allocator.free(params.slice);
             const ptr: *P.Parameters = @ptrCast(@alignCast(params.context));
