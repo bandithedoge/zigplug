@@ -9,11 +9,11 @@ pub fn build(b: *std.Build) !void {
         .target = target,
         .optimize = optimize,
         .imports = &.{.{
-            .name = "msgpack",
-            .module = b.dependency("msgpack", .{
+            .name = "bufzilla",
+            .module = b.dependency("bufzilla", .{
                 .target = target,
                 .optimize = optimize,
-            }).module("msgpack"),
+            }).module("bufzilla"),
         }},
     });
 

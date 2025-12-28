@@ -1,7 +1,7 @@
 const zigplug = @import("root.zig");
 
 const std = @import("std");
-const msgpack = @import("msgpack");
+const bufzilla = @import("bufzilla");
 
 pub const State = struct {
     context: *anyopaque,
@@ -10,57 +10,64 @@ pub const State = struct {
     allocator: std.mem.Allocator,
 
     pub fn serialize(self: *const State, writer: *std.Io.Writer) !void {
-        var reader = std.Io.Reader.failing;
-        var packer = msgpack.packIO(&reader, writer);
+        var aw = std.Io.Writer.Allocating.init(self.allocator);
+        defer aw.deinit();
 
-        var map = msgpack.Payload.mapPayload(self.allocator);
-        defer map.free(self.allocator);
+        var w = bufzilla.Writer.init(&aw.writer);
 
-        for (self.slice) |parameter| {
-            const id = switch (parameter.*) {
-                inline else => |*p| p.options.id.?,
+        try w.startObject();
+
+        for (self.slice) |parameter|
+            switch (parameter.*) {
+                inline else => |*p| {
+                    const id = p.options.id.?;
+                    const value = p.get();
+
+                    try w.writeAny(id);
+                    try w.writeAnyExplicit(@TypeOf(value), value);
+
+                    self.log.debug("saved parameter '{s}' = {any}", .{ id, value });
+                },
             };
 
-            try map.mapPut(id, switch (parameter.*) {
-                .bool => |p| .boolToPayload(p.get()),
-                .float => |p| .floatToPayload(p.get()),
-                .int => |p| .intToPayload(p.get()),
-                .uint => |p| .uintToPayload(p.get()),
-            });
+        try w.endContainer();
 
-            switch (parameter.*) {
-                inline else => |p| self.log.debug("saved parameter '{s}' = {any}", .{ id, p.get() }),
-            }
-        }
-
-        try packer.write(map);
+        const bytes = aw.written();
+        self.log.debug("saving encoded state: {s}", .{bytes});
+        try writer.writeAll(bytes);
+        try writer.flush();
     }
 
     pub fn deserialize(self: *State, reader: *std.Io.Reader) !void {
-        var writer = std.Io.Writer.failing;
-        var packer = msgpack.packIO(reader, &writer);
+        var aw = std.Io.Writer.Allocating.init(self.allocator);
+        defer aw.deinit();
 
-        const decoded = try packer.read(self.allocator);
-        defer decoded.free(self.allocator);
+        _ = try reader.streamRemaining(&aw.writer);
 
-        for (self.slice) |parameter| {
-            const id = switch (parameter.*) {
-                inline else => |*p| p.options.id.?,
-            };
+        const bytes = aw.written();
+        self.log.debug("reading encoded state: {s}", .{bytes});
 
-            if (try decoded.mapGet(id)) |value| {
-                switch (parameter.*) {
-                    .bool => |*p| p.set(value.bool),
-                    .float => |*p| p.set(value.float),
-                    .int => |*p| p.set(value.int),
-                    .uint => |*p| p.set(value.uint),
-                }
-            }
+        var r = bufzilla.Reader(.{}).init(bytes);
 
+        for (self.slice) |parameter|
             switch (parameter.*) {
-                inline else => |p| self.log.debug("read parameter '{s}' = {any}", .{ id, p.get() }),
-            }
-        }
+                inline else => |*p| {
+                    const id = p.options.id.?;
+                    const decoded_value = try r.readPath(id);
+                    if (decoded_value) |value| {
+                        switch (value) {
+                            @TypeOf(p.*).param_type.bufzillaValueTag() => |v| {
+                                p.set(v);
+                                self.log.debug("read parameter '{s}' = {any}", .{ id, v });
+                            },
+                            else => self.log.warn(
+                                "wrong type for parameter '{s}': expected {s}, got {s}",
+                                .{ id, @tagName(@TypeOf(p.*).param_type), @tagName(value) },
+                            ),
+                        }
+                    } else self.log.warn("did not find parameter '{s}'", .{id});
+                },
+            };
     }
 };
 
@@ -98,7 +105,21 @@ pub fn Options(comptime T: type) type {
     };
 }
 
-const ParameterType = enum { float, int, uint, bool };
+const ParameterType = enum {
+    float,
+    int,
+    uint,
+    bool,
+
+    pub fn bufzillaValueTag(self: ParameterType) @typeInfo(bufzilla.Value).@"union".tag_type.? {
+        return switch (self) {
+            .float => .f64,
+            .int => .i64,
+            .uint => .u64,
+            .bool => .bool,
+        };
+    }
+};
 
 pub const Parameter = union(ParameterType) {
     fn Inner(comptime T: type) type {

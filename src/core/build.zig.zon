@@ -5,9 +5,9 @@
     .minimum_zig_version = "0.15.1",
 
     .dependencies = .{
-        .msgpack = .{
-            .url = "https://github.com/zigcc/zig-msgpack/archive/refs/tags/0.0.16.tar.gz",
-            .hash = "zig_msgpack-0.0.14-evvueHImBQA5zzdD7c4Sl9yJ4JECWb4JaWgvbInsk7Zt",
+        .bufzilla = .{
+            .url = "https://github.com/theseyan/bufzilla/archive/refs/tags/v0.3.2.tar.gz",
+            .hash = "bufzilla-0.3.0-gU6dXi67AQAg3WIFrNQ0iafrvexj3iBwVcczrVzrN3Ir",
         },
     },
 
