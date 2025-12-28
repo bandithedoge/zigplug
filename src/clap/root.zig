@@ -312,11 +312,13 @@ fn ClapPlugin(comptime Plugin: type, meta: Meta) type {
             }
 
             if (@hasDecl(Plugin, "Parameters")) {
+                const UserParameters = Plugin.Parameters;
+
                 if (std.mem.eql(u8, id_slice, &c.CLAP_EXT_PARAMS))
-                    return @import("extensions/parameters.zig").makeParameters(Plugin);
+                    return @import("extensions/parameters.zig").makeParameters(UserParameters);
 
                 if (std.mem.eql(u8, id_slice, &c.CLAP_EXT_STATE))
-                    return &@import("extensions/state.zig").state;
+                    return @import("extensions/state.zig").makeState(UserParameters);
             }
 
             state.plugin.log.warn("host requested unsupported extension '{s}'", .{id});
@@ -551,5 +553,6 @@ pub inline fn exportClap(comptime Plugin: type, meta: Meta) void {
 }
 
 comptime {
-    std.testing.refAllDecls(@This());
+    @setEvalBranchQuota(2000);
+    std.testing.refAllDeclsRecursive(@This());
 }

@@ -5,10 +5,7 @@ const clap = @import("clap");
 
 const std = @import("std");
 
-pub fn makeParameters(comptime Plugin: type) *const c.clap_plugin_params_t {
-    std.debug.assert(@hasDecl(Plugin, "Parameters"));
-    const UserParameters = Plugin.Parameters;
-
+pub fn makeParameters(comptime UserParameters: type) *const c.clap_plugin_params_t {
     comptime for (std.meta.fields(UserParameters)) |field| {
         const name = switch (field.defaultValue().?) {
             inline else => |p| p.options.name,

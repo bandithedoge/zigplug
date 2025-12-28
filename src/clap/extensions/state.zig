@@ -3,28 +3,32 @@ const clap = @import("clap");
 
 const std = @import("std");
 
-pub fn save(clap_plugin: [*c]const c.clap_plugin, stream: [*c]const c.clap_ostream) callconv(.c) bool {
-    var writer = Writer.init(stream);
-    const plugin_state = clap.State.fromClap(clap_plugin);
-    plugin_state.plugin.parameters.?.serialize(&writer.writer) catch |e|
-        plugin_state.plugin.log.err("failed to save parameters: {}", .{e});
+pub fn makeState(comptime UserParameters: type) *const c.clap_plugin_state {
+    const state = struct {
+        pub fn save(clap_plugin: [*c]const c.clap_plugin, stream: [*c]const c.clap_ostream) callconv(.c) bool {
+            var writer = Writer.init(stream);
+            const plugin_state = clap.State.fromClap(clap_plugin);
+            plugin_state.plugin.parameters.?.serialize(&writer.writer, UserParameters) catch |e|
+                plugin_state.plugin.log.err("failed to save parameters: {}", .{e});
 
-    return true;
+            return true;
+        }
+
+        pub fn load(clap_plugin: [*c]const c.clap_plugin, stream: [*c]const c.clap_istream) callconv(.c) bool {
+            var reader = Reader.init(stream);
+            const plugin_state = clap.State.fromClap(clap_plugin);
+            plugin_state.plugin.parameters.?.deserialize(&reader.reader, UserParameters) catch |e|
+                plugin_state.plugin.log.err("failed to read parameters: {}", .{e});
+
+            return true;
+        }
+    };
+
+    return &.{
+        .save = state.save,
+        .load = state.load,
+    };
 }
-
-pub fn load(clap_plugin: [*c]const c.clap_plugin, stream: [*c]const c.clap_istream) callconv(.c) bool {
-    var reader = Reader.init(stream);
-    const plugin_state = clap.State.fromClap(clap_plugin);
-    plugin_state.plugin.parameters.?.deserialize(&reader.reader) catch |e|
-        plugin_state.plugin.log.err("failed to read parameters: {}", .{e});
-
-    return true;
-}
-
-pub const state = c.clap_plugin_state{
-    .save = save,
-    .load = load,
-};
 
 pub const Writer = struct {
     clap_stream: *const c.clap_ostream,

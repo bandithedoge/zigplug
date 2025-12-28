@@ -9,7 +9,7 @@ pub const State = struct {
     slice: []*Parameter,
     allocator: std.mem.Allocator,
 
-    pub fn serialize(self: *const State, writer: *std.Io.Writer) !void {
+    pub fn serialize(self: *const State, writer: *std.Io.Writer, comptime UserParameters: type) !void {
         var aw = std.Io.Writer.Allocating.init(self.allocator);
         defer aw.deinit();
 
@@ -17,13 +17,14 @@ pub const State = struct {
 
         try w.startObject();
 
-        for (self.slice) |parameter|
-            switch (parameter.*) {
-                inline else => |*p| {
-                    const id = p.options.id.?;
-                    const value = p.get();
+        const parameters: *UserParameters = @ptrCast(@alignCast(self.context));
+        inline for (std.meta.fields(UserParameters)) |field|
+            switch (@field(parameters, field.name)) {
+                inline else => |*parameter| {
+                    const id = parameter.options.id.?;
+                    const value = parameter.get();
 
-                    try w.writeAny(id);
+                    try w.writeAny(parameter.options.id.?);
                     try w.writeAnyExplicit(@TypeOf(value), value);
 
                     self.log.debug("saved parameter '{s}' = {any}", .{ id, value });
@@ -38,7 +39,7 @@ pub const State = struct {
         try writer.flush();
     }
 
-    pub fn deserialize(self: *State, reader: *std.Io.Reader) !void {
+    pub fn deserialize(self: *State, reader: *std.Io.Reader, comptime UserParameters: type) !void {
         var aw = std.Io.Writer.Allocating.init(self.allocator);
         defer aw.deinit();
 
@@ -49,23 +50,39 @@ pub const State = struct {
 
         var r = bufzilla.Reader(.{}).init(bytes);
 
-        for (self.slice) |parameter|
-            switch (parameter.*) {
-                inline else => |*p| {
-                    const id = p.options.id.?;
-                    const decoded_value = try r.readPath(id);
-                    if (decoded_value) |value| {
+        const parameters: *UserParameters = @ptrCast(@alignCast(self.context));
+        const fields = std.meta.fields(UserParameters);
+
+        var queries: [fields.len]bufzilla.PathQuery = undefined;
+
+        inline for (fields, 0..) |field, i|
+            queries[i] = .{
+                .path = switch (@field(parameters, field.name)) {
+                    inline else => |p| p.options.id.?,
+                },
+            };
+
+        try r.readPaths(&queries);
+
+        inline for (fields, 0..) |field, i|
+            switch (@field(parameters, field.name)) {
+                inline else => |*parameter| {
+                    const id = parameter.options.id.?;
+                    const param_type = @TypeOf(parameter.*).param_type;
+
+                    if (queries[i].value) |value|
                         switch (value) {
-                            @TypeOf(p.*).param_type.bufzillaValueTag() => |v| {
-                                p.set(v);
+                            param_type.bufzillaValueTag() => |v| {
+                                parameter.set(v);
                                 self.log.debug("read parameter '{s}' = {any}", .{ id, v });
                             },
                             else => self.log.warn(
                                 "wrong type for parameter '{s}': expected {s}, got {s}",
-                                .{ id, @tagName(@TypeOf(p.*).param_type), @tagName(value) },
+                                .{ id, @tagName(param_type), @tagName(value) },
                             ),
                         }
-                    } else self.log.warn("did not find parameter '{s}'", .{id});
+                    else
+                        self.log.warn("did not find parameter '{s}'", .{id});
                 },
             };
     }
