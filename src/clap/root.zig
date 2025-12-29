@@ -553,6 +553,5 @@ pub inline fn exportClap(comptime Plugin: type, meta: Meta) void {
 }
 
 comptime {
-    @setEvalBranchQuota(2000);
-    std.testing.refAllDeclsRecursive(@This());
+    std.testing.refAllDecls(@This());
 }
