@@ -420,12 +420,8 @@ fn PluginFactory(comptime Plugin: type, meta: Meta) type {
             if (host.*.get_extension.?(host, &c.CLAP_EXT_LOG)) |ptr| {
                 plugin.log.debug("host has clap.log extension", .{});
                 plugin_data.host_log = @ptrCast(@alignCast(ptr));
-                plugin_data.plugin.log.* = .{
-                    .context = plugin_data,
-                    .logFn = hostLog,
-                    .allocator = plugin_data.plugin.allocator,
-                };
-            }
+                plugin_data.plugin.setLog(plugin_data, hostLog);
+            } else plugin.log.debug("host has no clap.log", .{});
 
             plugin_class.* = .{
                 .desc = makeClapDescriptor(Plugin, meta) catch |e| {

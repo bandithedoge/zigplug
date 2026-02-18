@@ -73,12 +73,14 @@ pub const Meta = struct {
 
 pub const Plugin = struct {
     pub const Log = struct {
-        context: *anyopaque,
-        logFn: *const fn (
+        pub const LogFn = *const fn (
             context: *anyopaque,
             level: std.log.Level,
             text: [:0]const u8,
-        ) void = default,
+        ) void;
+
+        context: *anyopaque,
+        logFn: LogFn = default,
         allocator: std.mem.Allocator,
 
         pub fn default(_: *anyopaque, level: std.log.Level, text: [:0]const u8) void {
@@ -90,36 +92,32 @@ pub const Plugin = struct {
             }
         }
 
-        pub inline fn debug(self: *const Log, comptime format: []const u8, args: anytype) void {
-            if (comptime std.log.defaultLogEnabled(.debug)) {
-                const text = std.fmt.allocPrintSentinel(self.allocator, format, args, 0) catch return;
-                defer self.allocator.free(text);
-                self.logFn(self.context, .debug, text);
+        const stack_size = 512;
+
+        pub inline fn log(self: *const Log, comptime level: std.log.Level, comptime format: []const u8, args: anytype) void {
+            if (comptime std.log.defaultLogEnabled(level)) {
+                var stack_allocator = std.heap.stackFallback(stack_size, self.allocator);
+                const allocator = stack_allocator.get();
+                const text = std.fmt.allocPrintSentinel(allocator, format, args, 0) catch return;
+                defer allocator.free(text);
+                self.logFn(self.context, level, text);
             }
+        }
+
+        pub inline fn debug(self: *const Log, comptime format: []const u8, args: anytype) void {
+            self.log(.debug, format, args);
         }
 
         pub inline fn err(self: *const Log, comptime format: []const u8, args: anytype) void {
-            if (comptime std.log.defaultLogEnabled(.err)) {
-                const text = std.fmt.allocPrintSentinel(self.allocator, format, args, 0) catch return;
-                defer self.allocator.free(text);
-                self.logFn(self.context, .err, text);
-            }
+            self.log(.err, format, args);
         }
 
         pub inline fn info(self: *const Log, comptime format: []const u8, args: anytype) void {
-            if (comptime std.log.defaultLogEnabled(.info)) {
-                const text = std.fmt.allocPrintSentinel(self.allocator, format, args, 0) catch return;
-                defer self.allocator.free(text);
-                self.logFn(self.context, .info, text);
-            }
+            self.log(.info, format, args);
         }
 
         pub inline fn warn(self: *const Log, comptime format: []const u8, args: anytype) void {
-            if (comptime std.log.defaultLogEnabled(.warn)) {
-                const text = std.fmt.allocPrintSentinel(self.allocator, format, args, 0) catch return;
-                defer self.allocator.free(text);
-                self.logFn(self.context, .warn, text);
-            }
+            self.log(.warn, format, args);
         }
     };
 
@@ -232,6 +230,11 @@ pub const Plugin = struct {
 
     pub inline fn process(self: *Plugin, block: ProcessBlock, params: ?*const anyopaque) !void {
         try self.vtable.process(self.context, block, params);
+    }
+
+    pub fn setLog(self: *Plugin, context: *anyopaque, logFn: Log.LogFn) void {
+        self.log.context = context;
+        self.log.logFn = logFn;
     }
 };
 
